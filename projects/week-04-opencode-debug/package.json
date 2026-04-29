@@ -1,0 +1,14 @@
+{
+  "name": "week-04-opencode-debug",
+  "type": "module",
+  "version": "0.1.0",
+  "description": "Week4 project - OpenCode debugging and analysis",
+  "main": "src/index.js",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
+  }
+}

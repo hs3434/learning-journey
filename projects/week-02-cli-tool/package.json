@@ -1,0 +1,22 @@
+{
+  "name": "week-02-cli-tool",
+  "type": "module",
+  "version": "0.1.0",
+  "description": "Week2 project - CLI tool with Node.js",
+  "main": "src/index.js",
+  "bin": {
+    "learn-cli": "./src/index.js"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "commander": "^11.0.0",
+    "execa": "^8.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
+  }
+}
