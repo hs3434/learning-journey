@@ -22,7 +22,7 @@
 
 ## 学习顺序
 
-TS → Node 运行时 → Effect 铺垫（Effect.gen）→ Effect 核心 → OpenCode 源码
+Week 0（JS 强化）→ Week 1（TS）→ Week 2（Node）→ Week 3（Effect 铺垫）→ Week 4（Effect 核心）→ Week 5-6（OpenCode 源码）
 
 **关键约束**：
 - Effect.gen 铺垫（Week2 Day5）不可跳过，否则 Week3 直接上并发会懵

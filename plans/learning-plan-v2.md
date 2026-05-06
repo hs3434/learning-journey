@@ -3,7 +3,52 @@
 > 核心目标：吃透 TS/Node/Effect → 能独立做 OpenCode 二次开发、功能优化、插件改造
 > 3 个月后无缝切入 Rust 渐进学习
 
-## 阶段一：4 周筑基（能看懂、能改 OpenCode）
+## 学习顺序调整
+
+**Week 0（新增）**：JavaScript 强化 → 如果 JS 基础薄弱从此开始
+**Week 1**：TypeScript 强化 → 原本 Week 1，内容不变
+**Week 2-4**：Node.js / Effect / OpenCode → 原本 Week 2-4
+**Week 5-12**：工程化 + 插件开发 + Rust 铺垫
+
+---
+
+## Week 0：JavaScript 强化（新增）
+
+**目标**：补齐 JS 基础薄弱点，为 Week 1 TypeScript 打底
+
+**每日节奏（3h）**：1h 理论 + 1.5h 练习 + 0.5h 复盘
+
+| Day | 理论 | 实战 |
+|-----|------|------|
+| 1 | 变量声明、函数、作用域、闭包 | 闭包实现私有变量 |
+| 2 | 原型链、this 绑定、class | 原型继承、class 语法 |
+| 3 | Promise、async/await、错误处理 | 异步工具函数 |
+| 4 | 事件循环、微任务、宏任务 | 事件循环练习 |
+| 5 | ES6 模块（import/export） | 模块化工具库 |
+| 周末 | 休息 + Week1 预览 | 产出：Week0-js-reinforcement |
+
+**Week0 配套项目**：JS 基础强化
+```
+projects/week-00-js-reinforcement/
+├── src/
+│   ├── modules/     # 数学、字符串工具
+│   ├── utils/       # async 工具
+│   └── index.js     # 入口
+└── package.json
+```
+
+**前置检查**：如果你能独立完成以下题目，可跳过 Week 0：
+```javascript
+// 1. 什么是闭包？为什么需要闭包？
+// 2. this 的四种绑定方式是什么？
+// 3. Promise.all 和 Promise.race 的区别？
+// 4. 事件循环中，微任务和宏任务的执行顺序？
+// 5. ES6 模块中 import 和 require 的区别？
+```
+
+---
+
+## 阶段一：5 周筑基（能看懂、能改 OpenCode）
 
 ### Week 1：TypeScript 强化
 **目标**：补齐类型系统短板，Agent 开发全靠 TS
