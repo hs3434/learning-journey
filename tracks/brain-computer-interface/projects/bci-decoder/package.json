@@ -1,0 +1,14 @@
+{
+  "name": "bci-decoder",
+  "version": "0.1.0",
+  "description": "Week5 project - BCI decoding (SSVEP/MI)",
+  "type": "module",
+  "main": "src/decoder.py",
+  "scripts": {
+    "test": "python src/decoder.py"
+  },
+  "dependencies": {
+    "numpy": "^1.24.0",
+    "scipy": "^1.11.0"
+  }
+}

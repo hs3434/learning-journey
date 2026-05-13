@@ -1,0 +1,17 @@
+{
+  "name": "eeg-viewer",
+  "version": "0.1.0",
+  "description": "Week2 project - EEG viewer with Qt GUI",
+  "type": "module",
+  "main": "src/main.py",
+  "scripts": {
+    "start": "python src/main.py",
+    "dev": "python -m PyQt6.ui.tools uic mainwindow.ui > src/ui_mainwindow.py"
+  },
+  "dependencies": {
+    "PyQt6": "^6.6.0",
+    "numpy": "^1.24.0",
+    "matplotlib": "^3.7.0",
+    "mne": "^1.5.0"
+  }
+}

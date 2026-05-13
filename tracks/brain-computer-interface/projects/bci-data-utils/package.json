@@ -1,0 +1,15 @@
+{
+  "name": "bci-data-utils",
+  "version": "0.1.0",
+  "description": "Week1 project - EEG data loading and preprocessing",
+  "type": "module",
+  "main": "src/eeg_loader.py",
+  "scripts": {
+    "test": "echo \"Run: python src/eeg_loader.py\""
+  },
+  "dependencies": {
+    "mne": "^1.5.0",
+    "numpy": "^1.24.0",
+    "pandas": "^2.0.0"
+  }
+}
