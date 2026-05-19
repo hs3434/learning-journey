@@ -28,33 +28,35 @@
 
 ## 开发环境
 
-根据学习路线而定。
+每条路线独立管理环境，互不干扰。
+
+**brain-computer-interface 路线**：
+- Python ≥ 3.11
+- [uv](https://docs.astral.sh/uv/) 包管理器
+- 虚拟环境：`tracks/brain-computer-interface/.venv/`
+- 依赖声明：`tracks/brain-computer-interface/pyproject.toml`
+- 国内镜像已配置（清华 tuna）
 
 **js-opencode 路线**：
 - Node.js 18+
 - pnpm（OpenCode monorepo 使用 pnpm workspace）
 - TypeScript 5.x
 
-**brain-computer-interface 路线**：
-- Python 3.9+
-- conda 或 venv 虚拟环境
-- PyQt6 / PySide6（GUI）
-- mne, numpy, scipy, scikit-learn
-
-## 通用命令
+## 常用命令
 
 ```bash
 # 查看所有路线
 ls tracks/
 
-# 进入某路线
-cd tracks/js-opencode/
-cd tracks/brain-computer-interface/
+# BCI 路线
+cd tracks/brain-computer-interface
+uv venv && source .venv/bin/activate   # 创建/激活环境
+uv sync                                 # 安装依赖
+python projects/signal-processor/exercises/day7_preprocessing.py  # 运行练习
 
-# BCI 路线环境配置示例
-conda create -n bci python=3.10
-conda activate bci
-pip install mne numpy scipy pyqt6 scikit-learn
+# JS 路线
+cd tracks/js-opencode/projects/week-00-js-reinforcement
+npm install && npm run dev
 ```
 
 ## 复盘格式（每周结束填写）
