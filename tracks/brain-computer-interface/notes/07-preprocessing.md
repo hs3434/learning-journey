@@ -46,15 +46,24 @@ Raw 原始数据
 **自动检测方法**：
 
 ```python
-# 方法1：基于幅值阈值
-# 信号幅值超过其他通道均值 ± 3SD 的通道
+# 方法1：基于幅值标准差（双向检测）
+# 高标准差：异常噪声（接触不良）  低标准差：平坦信号（电极脱落）
 import numpy as np
 
 data = raw.get_data()
 ch_std = np.std(data, axis=1)
 mean_std = np.mean(ch_std)
-bad_by_std = [raw.ch_names[i] for i, s in enumerate(ch_std)
-              if s > mean_std + 3 * np.std(ch_std)]
+std_of_std = np.std(ch_std)
+
+# 双向 3σ 阈值
+high_threshold = mean_std + 3 * std_of_std   # 异常噪声
+low_threshold = mean_std - 3 * std_of_std     # 平坦信号
+
+bad_by_noise = [raw.ch_names[i] for i, s in enumerate(ch_std)
+                if s > high_threshold]         # 高噪声通道
+bad_by_flat = [raw.ch_names[i] for i, s in enumerate(ch_std)
+               if s < low_threshold]           # 平坦通道
+bad_auto = bad_by_noise + bad_by_flat
 
 # 方法2：基于通道间相关性
 # 与邻近通道相关性过低的通道

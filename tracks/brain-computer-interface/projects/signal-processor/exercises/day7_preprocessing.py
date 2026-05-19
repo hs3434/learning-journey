@@ -31,37 +31,57 @@ print(f"原始 EEG: {len(raw_eeg.ch_names)} 通道, "
 # ============================================================
 # 2. 坏通道处理
 # ============================================================
-# --- 2.1 自动检测坏通道（基于标准差） ---
+# --- 2.1 自动检测坏通道（高标准差 + 低标准差） ---
 data = raw_eeg.get_data()
 ch_std = np.std(data, axis=1)
 mean_std = np.mean(ch_std)
 std_of_std = np.std(ch_std)
-threshold = mean_std + 3 * std_of_std
+high_threshold = mean_std + 3 * std_of_std   # 异常噪声
+low_threshold = mean_std - 3 * std_of_std     # 平坦信号
 
-bad_auto = [raw_eeg.ch_names[i] for i, s in enumerate(ch_std)
-            if s > threshold]
+bad_by_high = [raw_eeg.ch_names[i] for i, s in enumerate(ch_std)
+               if s > high_threshold]
+bad_by_low = [raw_eeg.ch_names[i] for i, s in enumerate(ch_std)
+              if s < low_threshold]
+bad_auto = bad_by_high + bad_by_low
+
 print(f"\n--- 坏通道检测 ---")
 print(f"通道标准差均值: {mean_std * 1e6:.2f} μV")
-print(f"3σ 阈值: {threshold * 1e6:.2f} μV")
-print(f"自动检测到的异常通道: {bad_auto if bad_auto else '无'}")
+print(f"高标准差阈值 (>3σ): {high_threshold * 1e6:.2f} μV → 检测到: {bad_by_high if bad_by_high else '无'}")
+print(f"低标准差阈值 (<3σ): {low_threshold * 1e6:.2f} μV → 检测到: {bad_by_low if bad_by_low else '无'}")
 
 # 模拟：手动标记一些坏通道（示例数据通常比较干净，这里模拟添加）
 raw_eeg.info['bads'] = bad_auto  # 先用自动检测结果
 print(f"标记的坏通道: {raw_eeg.info['bads']}")
 
-# --- 2.2 画通道标准差分布图 ---
+# --- 2.2 画通道标准差分布图（高+低双阈值） ---
 fig, ax = plt.subplots(1, 1, figsize=(14, 5))
-colors = ['red' if raw_eeg.ch_names[i] in raw_eeg.info['bads'] else '#2196F3'
-          for i in range(len(raw_eeg.ch_names))]
+colors = []
+for i, ch_name in enumerate(raw_eeg.ch_names):
+    if ch_name in bad_by_high:
+        colors.append('red')       # 高噪声 → 红色
+    elif ch_name in bad_by_low:
+        colors.append('orange')    # 平坦信号 → 橙色
+    else:
+        colors.append('#2196F3')   # 正常 → 蓝色
 ax.bar(range(len(ch_std)), ch_std * 1e6, color=colors, width=0.8)
-ax.axhline(y=threshold * 1e6, color='red', linestyle='--', linewidth=1.5,
-           label=f'3σ threshold = {threshold * 1e6:.1f} μV')
+ax.axhline(y=high_threshold * 1e6, color='red', linestyle='--', linewidth=1.5,
+           label=f'High 3σ = {high_threshold * 1e6:.1f} μV (noise)')
+ax.axhline(y=low_threshold * 1e6, color='orange', linestyle='--', linewidth=1.5,
+           label=f'Low 3σ = {low_threshold * 1e6:.1f} μV (flat)')
 ax.axhline(y=mean_std * 1e6, color='gray', linestyle='-', linewidth=1,
            label=f'Mean = {mean_std * 1e6:.1f} μV')
 ax.set_xlabel('Channel Index')
 ax.set_ylabel('Std Dev (μV)')
-ax.set_title('Channel Standard Deviation — Bad Channel Detection', fontsize=12)
-ax.legend()
+ax.set_title('Bad Channel Detection — High (noise) & Low (flat) Std Dev', fontsize=12)
+# 自定义图例
+from matplotlib.patches import Patch
+legend_elements = [
+    Patch(facecolor='red', label=f'High std (>3σ): noise'),
+    Patch(facecolor='orange', label=f'Low std (<3σ): flat'),
+    Patch(facecolor='#2196F3', label='Normal'),
+]
+ax.legend(handles=legend_elements)
 plt.tight_layout()
 plt.savefig(f'{out_dir}_1_bad_channels.png', dpi=150, bbox_inches='tight')
 plt.close()
