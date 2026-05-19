@@ -102,33 +102,41 @@ else:
 print(f"\n--- 重参考 ---")
 print(f"当前参考: {raw_eeg.info.get('custom_ref_applied', 'default')}")
 
-# 记录重参考前的数据
-data_before_ref = raw_eeg.get_data(picks=['EEG 021'])[0].copy()
+# 记录重参考前的数据（多通道对比）
+demo_channels = ['EEG 021', 'EEG 001', 'EEG 056']  # C3, Fp1, Pz 附近
+demo_labels = ['~C3 (central)', '~Fp1 (frontal)', '~Pz (parietal)']
+data_before_ref = {ch: raw_eeg.get_data(picks=[ch])[0].copy() for ch in demo_channels}
 
 # --- 3.2 应用平均参考 ---
 raw_eeg.set_eeg_reference('average', verbose=False)
 print("已应用平均参考")
 
-data_after_ref = raw_eeg.get_data(picks=['EEG 021'])[0]
+data_after_ref = {ch: raw_eeg.get_data(picks=[ch])[0] for ch in demo_channels}
 
-# --- 3.3 画重参考前后对比 ---
-fig, axes = plt.subplots(2, 1, figsize=(14, 6), sharex=True)
+# --- 3.3 画重参考前后对比（多通道） ---
+fig, axes = plt.subplots(len(demo_channels), 2, figsize=(16, 4 * len(demo_channels)),
+                         sharex=True, sharey=True)
 
 t = raw_eeg.times
 mask = t <= 3  # 前3秒
 
-axes[0].plot(t[mask], data_before_ref[mask] * 1e6, color='#F44336', linewidth=0.5)
-axes[0].set_title('Before Re-referencing (original reference)', fontsize=11)
-axes[0].set_ylabel('μV')
-axes[0].axhline(0, color='gray', linewidth=0.5)
+for row, (ch, label) in enumerate(zip(demo_channels, demo_labels)):
+    # 重参考前
+    axes[row, 0].plot(t[mask], data_before_ref[ch][mask] * 1e6,
+                       color='#F44336', linewidth=0.5)
+    axes[row, 0].axhline(0, color='gray', linewidth=0.5)
+    axes[row, 0].set_ylabel('μV')
+    axes[row, 0].set_title(f'{ch} ({label}) — Before', fontsize=10)
 
-axes[1].plot(t[mask], data_after_ref[mask] * 1e6, color='#2196F3', linewidth=0.5)
-axes[1].set_title('After Re-referencing (average reference)', fontsize=11)
-axes[1].set_ylabel('μV')
-axes[1].set_xlabel('Time (s)')
-axes[1].axhline(0, color='gray', linewidth=0.5)
+    # 重参考后
+    axes[row, 1].plot(t[mask], data_after_ref[ch][mask] * 1e6,
+                       color='#2196F3', linewidth=0.5)
+    axes[row, 1].axhline(0, color='gray', linewidth=0.5)
+    axes[row, 1].set_title(f'{ch} ({label}) — After avg ref', fontsize=10)
 
-plt.suptitle('Re-referencing Effect on EEG 021 (~C3)', fontsize=13, fontweight='bold')
+axes[-1, 0].set_xlabel('Time (s)')
+axes[-1, 1].set_xlabel('Time (s)')
+plt.suptitle('Re-referencing Effect: Before vs Average Reference', fontsize=13, fontweight='bold')
 plt.tight_layout()
 plt.savefig(f'{out_dir}_2_rereference.png', dpi=150, bbox_inches='tight')
 plt.close()
