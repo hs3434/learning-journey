@@ -1,0 +1,24 @@
+[project]
+name = "learning-journey"
+version = "0.1.0"
+description = "BCI software engineer learning journey — signal processing, MNE-Python, BCI paradigms"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=2.0",
+    "scipy>=1.14",
+    "matplotlib>=3.9",
+    "mne>=1.7",
+    "scikit-learn>=1.5",
+    "pooch>=1.8",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ipython>=8.0",
+    "jupyter>=1.0",
+]
+
+[tool.uv]
+# 国内镜像源（解决 Docker 容器内访问 pypi.org 不稳定的问题）
+# 本地开发可删除此配置，uv 会回退到 pypi.org
+index-url = "https://pypi.tuna.tsinghua.edu.cn/simple"

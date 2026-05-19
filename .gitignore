@@ -1,1 +1,38 @@
-.git-credentials
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environment
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data / cache
+*.fif
+*.set
+*.edf
+*.bdf
+*.vhdr
+*.eeg
+*.fdt
+MNE-sample-data/
+mne_data/
+
+# Plots (generated)
+/tmp/
+
+# Jupyter
+.ipynb_checkpoints/
