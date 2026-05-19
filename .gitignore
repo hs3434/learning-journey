@@ -7,7 +7,7 @@ dist/
 build/
 *.egg
 
-# Virtual environment
+# Virtual environments (all tracks)
 .venv/
 
 # IDE
@@ -20,7 +20,7 @@ build/
 .DS_Store
 Thumbs.db
 
-# Data / cache
+# Data / cache (EEG data files are large)
 *.fif
 *.set
 *.edf
@@ -31,7 +31,7 @@ Thumbs.db
 MNE-sample-data/
 mne_data/
 
-# Plots (generated)
+# Plots (generated at runtime)
 /tmp/
 
 # Jupyter
