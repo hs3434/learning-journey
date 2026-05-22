@@ -99,20 +99,26 @@ ax1.text(0.55, 0.5, '~12 Hz periodic\nresponse', transform=ax1.transAxes, fontsi
 # 2b: Motor Imagery (ERD/ERS)
 ax2 = axes[0, 1]
 t_event = np.arange(-1, 3, 1/fs)
-mu_power = np.exp(-(t_event + 0.5)**2 / 0.5) * 0.8
-baseline = np.ones_like(t_event) * 0.3
+# ERD: mu rhythm suppression during movement (-)
+mu_erd = -np.exp(-((t_event - 0.5)**2) / 0.3) * 0.8
+# ERS: beta rebound after movement (+)
+beta_ers = np.exp(-((t_event - 1.5)**2) / 0.4) * 0.5
+# Combined signal
+combined = mu_erd + beta_ers
 
-ax2.fill_between(t_event, baseline, baseline - mu_power * baseline, 
+ax2.plot(t_event, combined, 'b-', linewidth=2, label='Combined')
+ax2.fill_between(t_event, 0, combined, where=(combined < 0), 
                  alpha=0.5, color='red', label='ERD (mu suppression)')
-ax2.fill_between(t_event, baseline, baseline + 0.1 * baseline, 
+ax2.fill_between(t_event, 0, combined, where=(combined > 0), 
                  alpha=0.5, color='green', label='ERS (beta rebound)')
-ax2.axhline(y=baseline[0], color='k', linestyle='--', alpha=0.5)
-ax2.axvline(x=0, color='r', linestyle='-', alpha=0.5, label='Movement onset')
+ax2.axhline(y=0, color='k', linestyle='-', alpha=0.5)
+ax2.axvline(x=0, color='gray', linestyle='--', alpha=0.5, label='Movement onset')
 ax2.set_title('Motor Imagery (MI) - ERD/ERS')
 ax2.set_xlabel('Time (s)')
-ax2.set_ylabel('Relative Power Change (%)')
-ax2.legend(fontsize=8)
+ax2.set_ylabel('Power Change from Baseline (%)')
+ax2.legend(fontsize=8, loc='upper right')
 ax2.set_xlim(-1, 3)
+ax2.set_ylim(-1, 0.8)
 
 # 2c: P300
 ax3 = axes[1, 0]
@@ -197,20 +203,34 @@ print(f'Fig 3 saved: {path}')
 # =============================================================================
 fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 
+def compute_itr(P, N, T):
+    """计算 ITR (bits/min)"""
+    with np.errstate(divide='ignore', invalid='ignore'):
+        # 熵项：当 P=1 时，(1-P)*log2(...) = 0 * (-inf) 需要特殊处理
+        # 正确的极限：当 P→1 时，(1-P)*log2((1-P)/(N-1)) → 0
+        if isinstance(P, np.ndarray):
+            entropy = np.where(
+                (P > 0) & (P < 1),
+                P * np.log2(P) + (1 - P) * np.log2((1 - P) / (N - 1)),
+                0.0  # P=0 或 P=1 时熵为0
+            )
+        else:
+            if 0 < P < 1:
+                entropy = P * np.log2(P) + (1 - P) * np.log2((1 - P) / (N - 1))
+            else:
+                entropy = 0.0
+        
+        itr = (60 / T) * (np.log2(N) + entropy)
+    return itr
+
 # 4a: ITR vs Accuracy
 ax1 = axes[0]
 T = 2
 N_values = [2, 4, 8, 10]
-P = np.linspace(0.5, 1, 50)
+P = np.linspace(0.5, 0.9999, 50)  # 不包含 P=1
 
 for N in N_values:
-    with np.errstate(divide='ignore', invalid='ignore'):
-        itrs = (60 / T) * (
-            np.log2(N) + 
-            P * np.log2(P) + 
-            (1 - P) * np.log2((1 - P) / (N - 1))
-        )
-        itrs = np.nan_to_num(itrs, nan=0)
+    itrs = compute_itr(P, N, T)
     ax1.plot(P * 100, itrs, label=f'N={N}', linewidth=2)
 
 ax1.set_xlabel('Accuracy (%)', fontsize=12)
@@ -227,14 +247,9 @@ P_values = [0.7, 0.8, 0.9, 1.0]
 T_range = np.linspace(0.5, 10, 50)
 
 for P_val in P_values:
-    with np.errstate(divide='ignore', invalid='ignore'):
-        itrs = (60 / T_range) * (
-            np.log2(N) + 
-            P_val * np.log2(P_val) + 
-            (1 - P_val) * np.log2((1 - P_val) / (N - 1))
-        )
-        itrs = np.nan_to_num(itrs, nan=0)
-    ax2.plot(T_range, itrs, label=f'P={P_val*100:.0f}%', linewidth=2)
+    itrs = compute_itr(P_val, N, T_range)
+    label = f'P={int(P_val*100)}%'
+    ax2.plot(T_range, itrs, label=label, linewidth=2)
 
 ax2.set_xlabel('Selection Time T (s)', fontsize=12)
 ax2.set_ylabel('ITR (bits/min)', fontsize=12)
