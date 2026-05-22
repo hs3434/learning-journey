@@ -13,6 +13,22 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
+
+# 中文字体支持
+for f in fm.fontManager.ttflist:
+    if 'Noto' in f.name or 'CJK' in f.name or 'WenQuanYi' in f.name or 'SimHei' in f.name:
+        plt.rcParams['font.sans-serif'] = [f.name]
+        break
+else:
+    # 尝试找系统中文通用字体
+    chinese_fonts = [f.name for f in fm.fontManager.ttflist if any(x in f.name.lower() for x in ['noto', 'cjk', 'wqy', 'wenquanyi', 'droid', 'source han'])]
+    if chinese_fonts:
+        plt.rcParams['font.sans-serif'] = [chinese_fonts[0]]
+    else:
+        plt.rcParams['font.sans-serif'] = ['DejaVu Sans']
+plt.rcParams['axes.unicode_minus'] = False
+
 from scipy import signal
 
 import mne
@@ -57,8 +73,9 @@ print(f"  ✓ Epochs: {len(epochs)} 个, shape {epochs.get_data().shape}")
 # ─────────────────────────────────────────
 # 工具函数
 # ─────────────────────────────────────────
+out_dir = '/workspace/learning-journey/tracks/brain-computer-interface/projects/signal-processor/exercises'
 def savefig(fig, idx):
-    path = f'/tmp/day9_plot_{idx}.png'
+    path = f'{out_dir}/day9_plot_{idx}.png'
     fig.savefig(path, dpi=120, bbox_inches='tight')
     plt.close(fig)
     print(f"  ✓ 保存图 {idx}: {path}")
@@ -88,7 +105,7 @@ times_raw = np.linspace(-1, 2, len(data))  # original times
 ax = axes[0]
 ax.plot(times_raw, data * 1e6, color='steelblue', linewidth=0.8)
 ax.set_ylabel('EEG [μV]')
-ax.set_title(f'原始 EEG 时域信号 ({picked_ch})', fontsize=11)
+ax.set_title(f'Raw EEG ({picked_ch})', fontsize=11)
 ax.axvline(0, color='red', linestyle='--', label='Event onset')
 ax.legend(fontsize=9)
 
@@ -102,13 +119,13 @@ ax.axvline(0, color='white', linestyle='--', linewidth=1)
 cb = fig1.colorbar(pc, ax=ax, shrink=0.8)
 cb.set_label('Power [dB]')
 
-fig1.suptitle('图 1：STFT 频谱图 — 单通道示范', fontsize=14, fontweight='bold')
+fig1.suptitle('Fig1: STFT Spectrogram - Single Channel Demo', fontsize=14, fontweight='bold')
 savefig(fig1, 1)
 
 # ─────────────────────────────────────────
 # 图 2：不同窗口大小对比
 # ─────────────────────────────────────────
-print(">>> 图 2：STFT 窗口大小对比")
+print(">>> 图 2：STFT Window Size Comparison")
 fig2, axes = plt.subplots(3, 1, figsize=(13, 10), sharex=True)
 windows = [32, 128, 512]
 colors = ['#1f77b4', '#ff7f0e', '#2ca02c']
@@ -119,14 +136,13 @@ for ax, nperseg_w, color in zip(axes, windows, colors):
     pc = ax.pcolormesh(t_w - 1, f_w, 10 * np.log10(pwr + 1e-12),
                        shading='gouraud', cmap='viridis')
     ax.set_ylabel('Frequency [Hz]')
-    ax.set_title(f'STFT — nperseg={nperseg_w}  (Δf={fs/nperseg_w:.1f}Hz, 窗口={nperseg_w/fs:.2f}s)',
-                 fontsize=10)
+    ax.set_title(f'STFT -- nperseg={nperseg_w}  (Δf={fs/nperseg_w:.1f}Hz, window={nperseg_w/fs:.2f}s)', fontsize=10)
     ax.axvline(0, color='red', linestyle='--', linewidth=1)
     cb = fig2.colorbar(pc, ax=ax, shrink=0.8)
     cb.set_label('dB')
 
 axes[-1].set_xlabel('Time [s] (relative to event)')
-fig2.suptitle('图 2：STFT 窗口大小与频率分辨率权衡', fontsize=14, fontweight='bold')
+fig2.suptitle('图 2：STFT Window Size vs Frequency Resolution Trade-off', fontsize=14, fontweight='bold')
 savefig(fig2, 2)
 
 # ─────────────────────────────────────────
@@ -154,7 +170,7 @@ power_avg.plot(
     axes=ax, colorbar=True, show=False,
     title=f'ERD/ERS at {ch}'
 )
-ax.set_title(f'图 3：ERD/ERS 时频图 — {ch} 通道 (Baseline: pre-event %)', fontsize=12)
+ax.set_title(f'ERD/ERS Time-Frequency - {ch} (Baseline: pre-event %)', fontsize=12)
 savefig(fig3, 3)
 
 # ─────────────────────────────────────────
@@ -216,20 +232,32 @@ for ax, (name, fmin, fmax, color) in zip(axes.flat, band_defs):
 
 axes[-1, 0].set_xlabel('Time [s] (relative to event)')
 axes[-1, 1].set_xlabel('Time [s] (relative to event)')
-fig4.suptitle('图 4：各频段 ERD/ERS 曲线（多 epoch 平均 ± SE）', fontsize=14, fontweight='bold')
+fig4.suptitle('Fig4: Band-by-Band ERD/ERS Curves (mean ± SE across epochs)', fontsize=14, fontweight='bold')
 savefig(fig4, 4)
 
 # ─────────────────────────────────────────
-# 图 5：Alpha ERD 拓扑图（单时间窗口）
+# 图 5：Alpha ERD Topomap（单时间窗口）
 # ─────────────────────────────────────────
-print(">>> 图 5：Alpha ERD 拓扑图")
+print(">>> 图 5：Alpha ERD Topomap")
+# Find actual closest time in power_avg.times to the center of our window
+t_center = 0.35  # center of 0.1-0.6s window
+actual_t = power_avg.times[np.argmin(np.abs(power_avg.times - t_center))]
+print(f"  Using actual t={actual_t:.3f}s (closest to {t_center})")
+# Compute data-driven vlim from actual alpha power in this window
+ch_idx_list = [power_avg.ch_names.index(c) for c in power_avg.ch_names]
+freq_mask5 = (power_avg.freqs >= 8) & (power_avg.freqs <= 12)
+t_mask5 = np.abs(power_avg.times - t_center) < 0.25  # ~0.1-0.6s range
+alpha_vals = power_avg.data[ch_idx_list][:, freq_mask5, :][:, :, t_mask5].mean(axis=(1, 2))
+vlim5 = (np.min(alpha_vals) * 1.5, np.max(alpha_vals) * 1.5)
+print(f"  Alpha power range: {alpha_vals.min():.2f} ~ {alpha_vals.max():.2f}, vlim={vlim5}")
+
 fig5 = power_avg.plot_topomap(
     tmin=0.1, tmax=0.6, fmin=8, fmax=12,
     baseline=(None, 0), mode='percent',
-    show=False, vlim=(-150, 150)
+    show=False, vlim=vlim5
 )
-fig5.suptitle('Fig5: Alpha (8-12 Hz) ERD topography 0.1-0.6s post-event', fontsize=13, fontweight='bold', y=1.02)
-path5 = '/tmp/day9_plot_5.png'
+fig5.suptitle('Fig5: Alpha (8-12 Hz) ERD Topography 0.1-0.6s post-event', fontsize=13, fontweight='bold', y=1.02)
+path5 = f'{out_dir}/day9_plot_5.png'
 fig5.savefig(path5, dpi=120, bbox_inches='tight')
 plt.close(fig5)
 print(f"  ✓ 保存图 5: {path5}")
@@ -238,28 +266,37 @@ print(f"  ✓ 保存图 5: {path5}")
 # 图 6：多时间点拓扑图 — Beta 频段
 # ─────────────────────────────────────────
 print(">>> 图 6：Beta 频段拓扑时间序列")
-times_to_plot = [-0.4, -0.1, 0.1, 0.3, 0.6, 1.2]
+# Use actual times from power_avg, evenly spaced in the 0.05-1.0s range
+t_candidates = power_avg.times[(power_avg.times >= 0.05) & (power_avg.times <= 1.0)]
+n_pts = 6
+if len(t_candidates) >= n_pts:
+    indices = np.linspace(0, len(t_candidates) - 1, n_pts, dtype=int)
+    times_to_plot = t_candidates[indices].tolist()
+else:
+    times_to_plot = list(t_candidates[:n_pts])
+print(f"  Using actual time points: {[f'{t:.3f}' for t in times_to_plot]}")
+
+# Compute data-driven vlim for beta band
+freq_mask6 = (power_avg.freqs >= 13) & (power_avg.freqs <= 30)
+beta_vals = power_avg.data[ch_idx_list][:, freq_mask6, :].mean(axis=(1, 2))
+vlim6 = (np.min(beta_vals) * 1.5, np.max(beta_vals) * 1.5)
+print(f"  Beta power range: {beta_vals.min():.2f} ~ {beta_vals.max():.2f}, vlim={vlim6}")
 
 fig6, axes = plt.subplots(2, 3, figsize=(15, 8))
-fig6.suptitle('图 6：Beta (13-30 Hz) 频段能量拓扑随时间演变', fontsize=14, fontweight='bold')
+fig6.suptitle('Fig6: Beta (13-30 Hz) Power Topography Over Time', fontsize=14, fontweight='bold')
 
 for ax, t_val in zip(axes.flat, times_to_plot):
-    try:
-        power_avg.plot_topomap(
-            t=t_val, fmin=13, fmax=30,
-            baseline=(None, 0), mode='percent',
-            axes=ax, show=False, colorbar=False,
-            vlim=(-100, 100)
-        )
-    except Exception:
-        label = f't={t_val}s NA'
-        ax.text(0.5, 0.5, label, ha='center', va='center',
-                transform=ax.transAxes)
-        ax.set_title(f't={t_val:.2f}s')
+    power_avg.plot_topomap(
+        tmin=t_val - 0.08, tmax=t_val + 0.08, fmin=13, fmax=30,
+        baseline=(None, 0), mode='percent',
+        axes=ax, show=False, colorbar=False,
+        vlim=vlim6
+    )
+    ax.set_title(f't={t_val:.2f}s', fontsize=10)
 
 fig6.subplots_adjust(right=0.88, hspace=0.4, wspace=0.3)
 cbar_ax = fig6.add_axes([0.9, 0.15, 0.02, 0.7])
-sm = plt.cm.ScalarMappable(cmap='RdBu_r', norm=plt.Normalize(-100, 100))
+sm = plt.cm.ScalarMappable(cmap='RdBu_r', norm=plt.Normalize(vlim6[0], vlim6[1]))
 sm.set_array([])
 fig6.colorbar(sm, cax=cbar_ax, label='ERD/ERS [%]')
 savefig(fig6, 6)
@@ -279,11 +316,11 @@ pc = ax.pcolormesh(times_TFR, freqs_TFR, gfp_tf,
                    shading='gouraud', cmap='plasma')
 ax.set_ylabel('Frequency [Hz]')
 ax.set_xlabel('Time [s] (relative to event)')
-ax.set_title('图 7：时频 GFP — 全脑同步活动强度', fontsize=13)
+ax.set_title('Fig7: Time-Frequency GFP - Global Brain Synchrony', fontsize=13)
 ax.axvline(0, color='white', linestyle='--', linewidth=1)
 cb = fig7.colorbar(pc, ax=ax, shrink=0.8)
 cb.set_label('GFP [μV²]')
-fig7.suptitle('图 7：时频 GFP — 通道间功率标准差', fontsize=14, fontweight='bold')
+fig7.suptitle('图 7：Time-Frequency GFP - Across-channel Power Std', fontsize=14, fontweight='bold')
 savefig(fig7, 7)
 
 # ─────────────────────────────────────────
@@ -293,7 +330,7 @@ print(">>> 图 8：ITC")
 fig8, ax = plt.subplots(figsize=(12, 5))
 itc_avg.plot([ch], baseline=(None, 0), mode='mean', axes=ax,
              colorbar=True, show=False)
-ax.set_title(f'图 8：ITC (相位锁定了成分) — {ch}', fontsize=13)
+ax.set_title(f'Fig8: ITC (Phase-Locked Component) - {ch}', fontsize=13)
 ax.set_ylabel('ITC (0=无锁相, 1=完美锁相)')
 savefig(fig8, 8)
 
