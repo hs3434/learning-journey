@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 plt.rcParams['font.sans-serif'] = ['DejaVu Sans']
 plt.rcParams['axes.unicode_minus'] = False
 
-out_dir = '/tmp/day8_plots'
+out_dir = '/workspace/learning-journey/tracks/brain-computer-interface/projects/signal-processor/exercises/day8_plot'
 
 # ============================================================
 # 1. 下载并加载 MNE 示例数据

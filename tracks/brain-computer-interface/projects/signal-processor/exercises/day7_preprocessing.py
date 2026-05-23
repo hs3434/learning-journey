@@ -23,41 +23,49 @@ sample_data_raw_file = (sample_data_folder / 'MEG' / 'sample' /
                         'sample_audvis_raw.fif')
 
 raw = mne.io.read_raw_fif(sample_data_raw_file, preload=True, verbose=False)
-raw_eeg = raw.copy().pick('eeg')
 
-print(f"原始 EEG: {len(raw_eeg.ch_names)} 通道, "
-      f"{raw_eeg.info['sfreq']} Hz, {raw_eeg.times[-1]:.1f} 秒")
+# 保留 EEG + EOG 通道（EOG 用于 ICA 伪迹检测，ICA 完成后再去掉）
+raw_work = raw.copy().pick(['eeg', 'eog'])
+
+eeg_ch_names = [ch for ch in raw_work.ch_names
+                if mne.channel_type(raw_work.info, raw_work.ch_names.index(ch)) == 'eeg']
+eog_ch_names = [ch for ch in raw_work.ch_names
+                if mne.channel_type(raw_work.info, raw_work.ch_names.index(ch)) == 'eog']
+
+print(f"原始数据: {len(eeg_ch_names)} EEG 通道 + {len(eog_ch_names)} EOG 通道, "
+      f"{raw_work.info['sfreq']} Hz, {raw_work.times[-1]:.1f} 秒")
 
 # ============================================================
 # 2. 坏通道处理
 # ============================================================
 # --- 2.1 自动检测坏通道（高标准差 + 低标准差） ---
-data = raw_eeg.get_data()
-ch_std = np.std(data, axis=1)
+# 坏通道检测只在 EEG 通道上进行（EOG 通道标准差天然不同）
+data_eeg = raw_work.get_data(picks='eeg')
+ch_std = np.std(data_eeg, axis=1)
 mean_std = np.mean(ch_std)
 std_of_std = np.std(ch_std)
 high_threshold = mean_std + 3 * std_of_std   # 异常噪声
 low_threshold = mean_std - 3 * std_of_std     # 平坦信号
 
-bad_by_high = [raw_eeg.ch_names[i] for i, s in enumerate(ch_std)
+bad_by_high = [eeg_ch_names[i] for i, s in enumerate(ch_std)
                if s > high_threshold]
-bad_by_low = [raw_eeg.ch_names[i] for i, s in enumerate(ch_std)
+bad_by_low = [eeg_ch_names[i] for i, s in enumerate(ch_std)
               if s < low_threshold]
 bad_auto = bad_by_high + bad_by_low
 
 print(f"\n--- 坏通道检测 ---")
-print(f"通道标准差均值: {mean_std * 1e6:.2f} μV")
+print(f"EEG 通道标准差均值: {mean_std * 1e6:.2f} μV")
 print(f"高标准差阈值 (>3σ): {high_threshold * 1e6:.2f} μV → 检测到: {bad_by_high if bad_by_high else '无'}")
 print(f"低标准差阈值 (<3σ): {low_threshold * 1e6:.2f} μV → 检测到: {bad_by_low if bad_by_low else '无'}")
 
-# 模拟：手动标记一些坏通道（示例数据通常比较干净，这里模拟添加）
-raw_eeg.info['bads'] = bad_auto  # 先用自动检测结果
-print(f"标记的坏通道: {raw_eeg.info['bads']}")
+# 标记坏通道（只标记 EEG 通道）
+raw_work.info['bads'] = bad_auto
+print(f"标记的坏通道: {raw_work.info['bads']}")
 
-# --- 2.2 画通道标准差分布图（高+低双阈值） ---
+# --- 2.2 画通道标准差分布图（高+低双阈值，仅 EEG） ---
 fig, ax = plt.subplots(1, 1, figsize=(14, 5))
 colors = []
-for i, ch_name in enumerate(raw_eeg.ch_names):
+for i, ch_name in enumerate(eeg_ch_names):
     if ch_name in bad_by_high:
         colors.append('red')       # 高噪声 → 红色
     elif ch_name in bad_by_low:
@@ -88,9 +96,8 @@ plt.close()
 print(f"图1已保存: {out_dir}_1_bad_channels.png")
 
 # --- 2.3 插值坏通道 ---
-if raw_eeg.info['bads']:
-    raw_before_interp = raw_eeg.copy()
-    raw_eeg.interpolate_bads(reset_bads=True)
+if raw_work.info['bads']:
+    raw_work.interpolate_bads(reset_bads=True)
     print(f"插值完成，坏通道已修复")
 else:
     print("无坏通道需要插值")
@@ -100,24 +107,24 @@ else:
 # ============================================================
 # --- 3.1 查看当前参考 ---
 print(f"\n--- 重参考 ---")
-print(f"当前参考: {raw_eeg.info.get('custom_ref_applied', 'default')}")
+print(f"当前参考: {raw_work.info.get('custom_ref_applied', 'default')}")
 
 # 记录重参考前的数据（多通道对比）
 demo_channels = ['EEG 021', 'EEG 001', 'EEG 056']  # C3, Fp1, Pz 附近
 demo_labels = ['~C3 (central)', '~Fp1 (frontal)', '~Pz (parietal)']
-data_before_ref = {ch: raw_eeg.get_data(picks=[ch])[0].copy() for ch in demo_channels}
+data_before_ref = {ch: raw_work.get_data(picks=[ch])[0].copy() for ch in demo_channels}
 
-# --- 3.2 应用平均参考 ---
-raw_eeg.set_eeg_reference('average', verbose=False)
-print("已应用平均参考")
+# --- 3.2 应用平均参考（仅对 EEG 通道，EOG 不参与） ---
+raw_work.set_eeg_reference('average', verbose=False)
+print("已应用平均参考（仅 EEG 通道）")
 
-data_after_ref = {ch: raw_eeg.get_data(picks=[ch])[0] for ch in demo_channels}
+data_after_ref = {ch: raw_work.get_data(picks=[ch])[0] for ch in demo_channels}
 
 # --- 3.3 画重参考前后对比（多通道） ---
 fig, axes = plt.subplots(len(demo_channels), 2, figsize=(16, 4 * len(demo_channels)),
                          sharex=True, sharey=True)
 
-t = raw_eeg.times
+t = raw_work.times
 mask = t <= 3  # 前3秒
 
 for row, (ch, label) in enumerate(zip(demo_channels, demo_labels)):
@@ -146,8 +153,8 @@ print(f"图2已保存: {out_dir}_2_rereference.png")
 # 4. ICA 伪迹去除
 # ============================================================
 # --- 4.1 ICA 前滤波（高通 1Hz 让 ICA 更稳定） ---
-raw_eeg.filter(l_freq=1.0, h_freq=40.0, verbose=False)
-raw_eeg.notch_filter(freqs=50, verbose=False)
+raw_work.filter(l_freq=1.0, h_freq=40.0, verbose=False)
+raw_work.notch_filter(freqs=50, verbose=False)
 print(f"\n--- ICA ---")
 print("滤波完成: 1-40Hz 带通 + 50Hz Notch")
 
@@ -161,16 +168,21 @@ ica = ICA(
     max_iter=800,
     verbose=False
 )
-ica.fit(raw_eeg)
+ica.fit(raw_work)
 print(f"ICA 拟合完成: {ica.n_components_} 个成分")
 
 # --- 4.3 自动检测 EOG 伪迹成分 ---
-# 用额极区 EEG 通道作为 EOG 代理（因为 pick('eeg') 后已无 EOG 通道）
-eog_proxy = [ch for ch in raw_eeg.ch_names if 'Fp' in ch or '011' in ch or '012' in ch]
-if not eog_proxy:
-    eog_proxy = [raw_eeg.ch_names[0], raw_eeg.ch_names[1]]  # fallback: 前2个通道
-print(f"EOG 代理通道: {eog_proxy}")
-eog_indices, eog_scores = ica.find_bads_eog(raw_eeg, ch_name=eog_proxy, verbose=False)
+# 直接使用数据中的 EOG 通道（不需要额极区 EEG 代理）
+if eog_ch_names:
+    print(f"使用真实 EOG 通道: {eog_ch_names}")
+    eog_indices, eog_scores = ica.find_bads_eog(raw_work, verbose=False)
+else:
+    # 如果没有 EOG 通道，退回到用额极区 EEG 通道做代理
+    eog_proxy = [ch for ch in raw_work.ch_names if 'Fp' in ch or '011' in ch or '012' in ch]
+    if not eog_proxy:
+        eog_proxy = [raw_work.ch_names[0], raw_work.ch_names[1]]
+    print(f"无 EOG 通道，使用额极区代理: {eog_proxy}")
+    eog_indices, eog_scores = ica.find_bads_eog(raw_work, ch_name=eog_proxy, verbose=False)
 print(f"自动检测到的 EOG 成分: {eog_indices}")
 
 # 设置排除列表
@@ -218,17 +230,21 @@ plt.close()
 print(f"图4已保存: {out_dir}_4_ica_eog_scores.png")
 
 # --- 4.6 应用 ICA ---
-raw_clean = ica.apply(raw_eeg.copy())
+raw_clean = ica.apply(raw_work.copy())
 print(f"\nICA 应用完成，排除了 {len(ica.exclude)} 个成分: {ica.exclude}")
 
-# --- 4.7 对比 ICA 前后 ---
+# --- 4.7 ICA 完成后去掉 EOG 通道（后续分析只需 EEG） ---
+raw_clean = raw_clean.pick('eeg')
+print(f"去掉 EOG 通道后: {len(raw_clean.ch_names)} 个 EEG 通道")
+
+# --- 4.8 对比 ICA 前后 ---
 fig, axes = plt.subplots(2, 1, figsize=(14, 6), sharex=True)
 
 ch_name = 'EEG 021'
-data_before_ica = raw_eeg.get_data(picks=[ch_name])[0]
+data_before_ica = raw_work.get_data(picks=[ch_name])[0]
 data_after_ica = raw_clean.get_data(picks=[ch_name])[0]
 
-t = raw_eeg.times
+t = raw_work.times
 mask = t <= 5  # 前5秒
 
 axes[0].plot(t[mask], data_before_ica[mask] * 1e6, color='#F44336', linewidth=0.5)

@@ -267,7 +267,7 @@ savefig(fig4, 4, 'LDA 空间模式')
 # 图 5：交叉验证每折的准确率
 # ─────────────────────────────────────────
 print("\n>>> 图 5：交叉验证折详情")
-fig5, ax = plt.subplots(figsize=(8, 4))
+fig5, ax = plt.subplots(figsize=(10, 5))
 ax.bar(range(1, 6), scores * 100, color='#3498db', alpha=0.8)
 ax.axhline(scores.mean() * 100, color='red', linestyle='--', linewidth=1.5,
           label=f'Mean: {scores.mean()*100:.1f}%')
@@ -275,11 +275,13 @@ ax.set_xlabel('Fold', fontsize=11)
 ax.set_ylabel('Accuracy [%]', fontsize=11)
 ax.set_title('Fig5: 5-Fold Cross-Validation Scores (LDA)', fontsize=13)
 ax.set_xticks(range(1, 6))
-ax.set_ylim(0.3, 1.0)
+ylim_low = max(0.4, scores.min() * 100 - 5)
+ylim_high = min(1.0, scores.max() * 100 + 5)
+ax.set_ylim(ylim_low, ylim_high)
 ax.legend(fontsize=10)
 ax.grid(True, alpha=0.3, axis='y')
 for i, s in enumerate(scores):
-    ax.text(i + 1, s * 100 + 0.01, f'{s*100:.1f}%', ha='center', fontsize=9)
+    ax.text(i + 1, s * 100 + 0.5, f'{s*100:.1f}%', ha='center', fontsize=9)
 savefig(fig5, 5, '交叉验证折详情')
 
 # ─────────────────────────────────────────
@@ -291,15 +293,13 @@ evoked_left = epochs['left'].average()
 evoked_right = epochs['right'].average()
 diff = mne.combine_evoked([evoked_left, evoked_right], weights=[1, -1])
 
-# 时间窗口平均 (100-300ms)
-t_start_idx = np.argmin(np.abs(epochs.times - 0.1))
-t_end_idx = np.argmin(np.abs(epochs.times - 0.3))
-diff_crop = diff.copy().crop(tmin=0.1, tmax=0.3)
-diff_mean = diff_crop.data.mean(axis=1)
+# 计算100-300ms平均的差异数据
+t_start_idx = np.argmin(np.abs(diff.times - 0.1))
+t_end_idx = np.argmin(np.abs(diff.times - 0.3))
+diff_topo = diff.data[:, t_start_idx:t_end_idx].mean(axis=1)
 
 fig6, axes = plt.subplots(1, 3, figsize=(15, 4))
 
-# 截取时间窗口
 evoked_left_crop = evoked_left.copy().crop(tmin=0.1, tmax=0.3)
 evoked_right_crop = evoked_right.copy().crop(tmin=0.1, tmax=0.3)
 
@@ -309,14 +309,9 @@ axes[0].set_title('Left\n(100-300ms avg)', fontsize=11)
 evoked_right_crop.plot_topomap(times=0.2, axes=axes[1], show=False, colorbar=False)
 axes[1].set_title('Right\n(100-300ms avg)', fontsize=11)
 
-# 差异图
-diff_crop = diff.copy().crop(tmin=0.1, tmax=0.3)
-diff_topo = diff_crop.data.mean(axis=1)
-vmax = max(abs(diff_topo.min()), abs(diff_topo.max()))
-im = axes[2].imshow(diff_topo[:, np.newaxis], cmap='RdBu_r',
-                     aspect='auto', vmin=-vmax, vmax=vmax)
+# 差异地形图：用 mne.viz.topomap.plot_topomap 直接画
+mne.viz.plot_topomap(diff_topo, diff.info, axes=axes[2], show=False, cmap='RdBu_r', contours=0)
 axes[2].set_title('Difference\n(Left - Right)', fontsize=11)
-plt.colorbar(im, ax=axes[2], shrink=0.8)
 
 fig6.suptitle('Fig6: ERP Topomap - Left vs Right (100-300ms)', fontsize=14, fontweight='bold')
 savefig(fig6, 6, 'ERP 地形图差异')
