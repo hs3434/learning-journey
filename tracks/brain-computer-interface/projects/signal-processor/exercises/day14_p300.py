@@ -349,7 +349,7 @@ ax1.legend(fontsize=9)
 ax1.set_xlim(-100, 600)
 ax1.grid(True, alpha=0.3)
 
-# 4b: Feature extraction — time window amplitudes
+# 4b: Feature extraction — all time window amplitudes (grouped boxplot)
 ax2 = axes[0, 1]
 
 # Define time windows for feature extraction
@@ -382,17 +382,57 @@ for _ in range(n_trials):
 features_target = np.array(features_target)
 features_nontarget = np.array(features_nontarget)
 
-# Plot P3b window feature
-p3b_idx = 3  # P3b window
-ax2.scatter(features_nontarget[:, p3b_idx], np.random.randn(n_trials) * 0.3,
-           c='gray', alpha=0.5, s=30, label='Non-target')
-ax2.scatter(features_target[:, p3b_idx], np.random.randn(n_trials) * 0.3,
-           c='red', alpha=0.5, s=30, label='Target')
-ax2.set_xlabel('P3b Window Amplitude (uV)')
-ax2.set_title(f'Feature Distribution: {windows[p3b_idx][0]}')
-ax2.legend()
-ax2.set_yticks([])
-ax2.grid(True, alpha=0.3)
+p3b_idx = 3  # P3b window index
+
+window_labels = [name.split(' ')[0] for name, _, _ in windows]  # N1, P2, P3a, P3b, SW
+x_pos = np.arange(len(windows))
+width = 0.35
+
+# Boxplot for each window: target vs non-target
+bp_target = ax2.boxplot([features_target[:, i] for i in range(len(windows))],
+                        positions=x_pos - width/2, widths=width,
+                        patch_artist=True, showfliers=False,
+                        medianprops=dict(color='darkred', linewidth=2),
+                        whiskerprops=dict(color='red'),
+                        capprops=dict(color='red'))
+bp_nontarget = ax2.boxplot([features_nontarget[:, i] for i in range(len(windows))],
+                           positions=x_pos + width/2, widths=width,
+                           patch_artist=True, showfliers=False,
+                           medianprops=dict(color='dimgray', linewidth=2),
+                           whiskerprops=dict(color='gray'),
+                           capprops=dict(color='gray'))
+
+for box in bp_target['boxes']:
+    box.set_facecolor('#FFCDD2')
+    box.set_edgecolor('red')
+for box in bp_nontarget['boxes']:
+    box.set_facecolor('#E0E0E0')
+    box.set_edgecolor('gray')
+
+# Overlay individual points with jitter
+for i in range(len(windows)):
+    jitter_t = np.random.randn(n_trials) * 0.06
+    jitter_nt = np.random.randn(n_trials) * 0.06
+    ax2.scatter(x_pos[i] - width/2 + jitter_t, features_target[:, i],
+               c='red', alpha=0.3, s=12, zorder=5)
+    ax2.scatter(x_pos[i] + width/2 + jitter_nt, features_nontarget[:, i],
+               c='gray', alpha=0.3, s=12, zorder=5)
+
+ax2.set_xticks(x_pos)
+ax2.set_xticklabels(window_labels)
+ax2.set_ylabel('Window Mean Amplitude (uV)')
+ax2.set_title('Feature by Time Window: Target vs Non-target')
+ax2.legend([bp_target['boxes'][0], bp_nontarget['boxes'][0]],
+           ['Target', 'Non-target'], fontsize=9)
+ax2.axhline(0, color='k', linestyle='-', alpha=0.3)
+ax2.grid(True, alpha=0.3, axis='y')
+
+# Annotate the discriminative P3b window
+ax2.annotate('Best\ndiscriminator',
+            xy=(x_pos[p3b_idx], features_target[:, p3b_idx].max()),
+            xytext=(x_pos[p3b_idx] + 0.8, features_target[:, p3b_idx].max() + 1.0),
+            fontsize=8, color='red', fontweight='bold',
+            arrowprops=dict(arrowstyle='->', color='red', lw=1.5))
 
 # 4c: Stepwise LDA classification
 ax3 = axes[1, 0]
