@@ -1,0 +1,5 @@
+{
+  "ignore": ["**/gui/**"],
+  "venvPath": ".",
+  "venv": ".venv"
+}
