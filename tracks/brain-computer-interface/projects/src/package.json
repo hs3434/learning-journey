@@ -1,0 +1,25 @@
+{
+  "name": "bci-pipeline",
+  "version": "1.0.0",
+  "description": "BCI Signal Processing Pipeline - Engineering and Integration",
+  "type": "module",
+  "main": "src/main.py",
+  "scripts": {
+    "start": "python -m src.main",
+    "gui": "python -m src.gui.main",
+    "test": "pytest src/tests/ -v",
+    "docs": "pydoc -w src/"
+  },
+  "dependencies": {
+    "mne": "^1.5.0",
+    "numpy": "^1.24.0",
+    "scipy": "^1.11.0",
+    "PyQt6": "^6.6.0",
+    "matplotlib": "^3.7.0",
+    "pyyaml": "^6.0",
+    "pydantic": "^2.0.0"
+  },
+  "devDependencies": {
+    "pytest": "^7.4.0"
+  }
+}
