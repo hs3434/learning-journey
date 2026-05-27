@@ -4,11 +4,11 @@ GUI Module
 Qt-based BCI Data Analysis GUI
 """
 
+from __future__ import annotations
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
-# GUI is optional - may not be available in all environments
 try:
     from PyQt6.QtWidgets import (
         QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -39,23 +39,23 @@ if GUI_AVAILABLE:
             try:
                 self.progress.emit(10)
                 self.log.emit("Loading data...")
-                result = self.pipeline.load(self.filepath)
+                self.pipeline.load(self.filepath)
                 self.progress.emit(30)
 
                 self.log.emit("Preprocessing...")
-                result = self.pipeline.preprocess()
+                self.pipeline.preprocess()
                 self.progress.emit(50)
 
                 self.log.emit("Creating epochs...")
-                result = self.pipeline.create_epochs()
+                self.pipeline.create_epochs()
                 self.progress.emit(70)
 
                 self.log.emit("Decoding...")
-                result = self.pipeline.decode()
+                self.pipeline.decode()
                 self.progress.emit(90)
 
                 self.progress.emit(100)
-                self.finished.emit(result)
+                self.finished.emit(self.pipeline.result)
 
             except Exception as e:
                 self.error.emit(str(e))
@@ -77,7 +77,6 @@ if GUI_AVAILABLE:
             self.setCentralWidget(central)
             layout = QVBoxLayout(central)
 
-            # Toolbar
             toolbar = QHBoxLayout()
             self.load_btn = QPushButton("Load EEG File")
             self.load_btn.clicked.connect(self.on_load)
@@ -98,7 +97,6 @@ if GUI_AVAILABLE:
             toolbar.addWidget(self.status_label)
             layout.addLayout(toolbar)
 
-            # Parameters
             params = QGroupBox("Parameters")
             params_layout = QHBoxLayout()
 
@@ -120,12 +118,10 @@ if GUI_AVAILABLE:
             params.setLayout(params_layout)
             layout.addWidget(params)
 
-            # Log area
             self.log_area = QTextEdit()
             self.log_area.setReadOnly(True)
             layout.addWidget(self.log_area)
 
-            # Progress
             self.progress = QProgressBar()
             layout.addWidget(self.progress)
 
@@ -147,15 +143,16 @@ if GUI_AVAILABLE:
             config.filter.h_freq = self.h_freq.value()
 
             self.pipeline = BCIPipeline(config)
-            self.worker = Worker(self.pipeline, "data.edf")  # Placeholder
+            self.worker = Worker(self.pipeline, "data.edf")
             self.worker.log.connect(self.log_area.append)
             self.worker.progress.connect(self.progress.setValue)
             self.worker.finished.connect(self.on_finished)
             self.worker.start()
 
         def on_finished(self, result):
-            self.status_label.setText(f"Done! Accuracy: {result.accuracy:.3f}")
-            self.save_btn.setEnabled(True)
+            if result and result.accuracy is not None:
+                self.status_label.setText(f"Done! Accuracy: {result.accuracy:.3f}")
+                self.save_btn.setEnabled(True)
 
         def on_save(self):
             if self.pipeline:

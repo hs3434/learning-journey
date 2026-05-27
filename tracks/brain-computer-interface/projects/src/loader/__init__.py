@@ -4,10 +4,15 @@ Data Loader Module
 EEG Data Loading - MNE/EEGLAB/BrainVision support
 """
 
+from __future__ import annotations
 from pathlib import Path
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, TYPE_CHECKING
 import logging
 from dataclasses import dataclass
+
+if TYPE_CHECKING:
+    import mne
+    import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +20,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class LoaderResult:
     """Result of data loading"""
-    raw: 'mne.io.Raw'  # Forward reference to avoid circular import
+    raw: 'mne.io.Raw'
     filepath: Path
     format: str
     n_channels: int
@@ -36,9 +41,9 @@ class DataLoader:
 
     def __init__(self, config: Optional['PipelineConfig'] = None):
         self.config = config
-        self.raw = None
+        self.raw: Optional['mne.io.Raw'] = None
 
-    def load(self, filepath: Path | str, preload: bool = True) -> 'Raw':
+    def load(self, filepath: Path | str, preload: bool = True) -> 'mne.io.Raw':
         """Load EEG data from file
 
         Args:
@@ -48,22 +53,20 @@ class DataLoader:
         Returns:
             MNE Raw object
         """
+        import mne
+
         filepath = Path(filepath)
         suffix = filepath.suffix.lower()
 
         logger.info(f"Loading {suffix} file: {filepath}")
 
         if suffix == '.edf' or suffix == '.EDF':
-            import mne
             self.raw = mne.io.read_raw_edf(filepath, preload=preload)
         elif suffix == '.fif':
-            import mne
             self.raw = mne.io.read_raw_fif(filepath, preload=preload)
         elif suffix == '.set':
-            import mne
             self.raw = mne.io.read_raw_eeglab(filepath, preload=preload)
         elif suffix == '.vhdr':
-            import mne
             self.raw = mne.io.read_raw_brainvision(filepath, preload=preload)
         else:
             raise ValueError(f"Unsupported format: {suffix}")
@@ -88,7 +91,7 @@ class DataLoader:
         }
 
     def get_data(self, start: Optional[int] = None, stop: Optional[int] = None,
-                 picks: str = 'eeg') -> Tuple['ndarray', 'ndarray']:
+                 picks: str = 'eeg') -> Tuple['np.ndarray', 'np.ndarray']:
         """Get data and times
 
         Args:

@@ -4,10 +4,13 @@ Preprocessor Module
 Signal preprocessing: filtering, ICA, artifact removal
 """
 
-from typing import Optional, List, Tuple
+from __future__ import annotations
+from typing import Optional, List, Tuple, TYPE_CHECKING
 import logging
-from dataclasses import dataclass
 import numpy as np
+
+if TYPE_CHECKING:
+    import mne
 
 logger = logging.getLogger(__name__)
 
@@ -19,19 +22,18 @@ class Preprocessor:
         self.raw = raw
         self.config = config
 
-    def bandpass(self, l_freq: float, h_freq: float, order: int = 4) -> 'Preprocessor':
+    def bandpass(self, l_freq: float, h_freq: float) -> 'Preprocessor':
         """Apply bandpass filter
 
         Args:
             l_freq: Low frequency cutoff (Hz)
             h_freq: High frequency cutoff (Hz)
-            order: Filter order
 
         Returns:
             self
         """
         logger.info(f"Bandpass filter: {l_freq}-{h_freq} Hz")
-        self.raw.filter(l_freq=l_freq, h_freq=h_freq, filter_length='auto')
+        self.raw.filter(l_freq=l_freq, h_freq=h_freq)
         return self
 
     def notch(self, freqs: List[int], Q: float = 30) -> 'Preprocessor':
@@ -78,7 +80,7 @@ class Preprocessor:
             self.raw.interpolate_bads(reset_bads=True)
         return self
 
-    def apply_ica(self, n_components: int = 20, random_state: int = 42) -> 'np.ndarray':
+    def apply_ica(self, n_components: int = 20, random_state: int = 42) -> 'ICA':
         """Apply ICA for artifact removal
 
         Args:
@@ -86,7 +88,7 @@ class Preprocessor:
             random_state: Random seed
 
         Returns:
-            ICA component indices to exclude (manual selection needed)
+            Fitted ICA object
         """
         from mne.preprocessing import ICA
 
@@ -104,7 +106,7 @@ class Preprocessor:
 def preprocess(raw: 'mne.io.Raw', filter_config: 'FilterConfig') -> 'mne.io.Raw':
     """Convenience function to preprocess raw data"""
     preprocessor = Preprocessor(raw, filter_config)
-    preprocessor.bandpass(filter_config.l_freq, filter_config.h_freq, filter_config.filter_order)
+    preprocessor.bandpass(filter_config.l_freq, filter_config.h_freq)
     if filter_config.notch_freqs:
         preprocessor.notch(filter_config.notch_freqs)
     preprocessor.set_reference('average')

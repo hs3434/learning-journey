@@ -4,10 +4,15 @@ Pipeline Module
 BCI Pipeline Orchestrator
 """
 
-from typing import Optional, Dict, Any, List
+from __future__ import annotations
+from typing import Optional, Dict, Any, List, TYPE_CHECKING
 from pathlib import Path
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+if TYPE_CHECKING:
+    import numpy as np
+    import mne
 
 logger = logging.getLogger(__name__)
 
@@ -18,17 +23,9 @@ class PipelineResult:
     success: bool
     accuracy: Optional[float] = None
     std: Optional[float] = None
-    steps_completed: List[str] = None
-    errors: List[str] = None
-    output_files: List[Path] = None
-
-    def __post_init__(self):
-        if self.steps_completed is None:
-            self.steps_completed = []
-        if self.errors is None:
-            self.errors = []
-        if self.output_files is None:
-            self.output_files = []
+    steps_completed: List[str] = field(default_factory=list)
+    errors: List[str] = field(default_factory=list)
+    output_files: List[Path] = field(default_factory=list)
 
 
 class BCIPipeline:
@@ -42,12 +39,12 @@ class BCIPipeline:
         self.config = config
         self.logger = logging.getLogger(__name__)
 
-        self.raw = None
-        self.epochs = None
-        self.events = None
-        self.result = None
+        self.raw: Optional['mne.io.Raw'] = None
+        self.epochs: Optional['mne.Epochs'] = None
+        self.events: Optional['np.ndarray'] = None
+        self.result: Optional[PipelineResult] = None
 
-        self._steps = []
+        self._steps: List[str] = []
 
     def load(self, filepath: Path | str) -> 'BCIPipeline':
         """Load EEG data"""
@@ -78,8 +75,8 @@ class BCIPipeline:
             self.logger.error(f"Preprocess failed: {e}")
             raise
 
-    def create_epochs(self, events: Optional[np.ndarray] = None,
-                     event_id: Optional[Dict[str, int]] = None) -> 'BCIPipeline':
+    def create_epochs(self, events: Optional['np.ndarray'] = None,
+                      event_id: Optional[Dict[str, int]] = None) -> 'BCIPipeline':
         """Create epochs"""
         from epocher import Epocher
 
@@ -106,15 +103,15 @@ class BCIPipeline:
 
     def decode(self) -> 'BCIPipeline':
         """Decode epochs"""
-        from decoder import decode
+        from decoder import decode as decode_fn
 
         self.logger.info("Decoding")
         try:
             data = self.epochs.get_data()
             labels = self.epochs.events[:, 2]
 
-            result = decode(data, labels, method=self.config.decode.method,
-                          cv_folds=self.config.decode.cv_folds)
+            result = decode_fn(data, labels, method=self.config.decode.method,
+                               cv_folds=self.config.decode.cv_folds)
 
             self.result = PipelineResult(
                 success=True,
@@ -130,7 +127,7 @@ class BCIPipeline:
             raise
 
     def run(self, filepath: Path | str,
-            events: Optional[np.ndarray] = None,
+            events: Optional['np.ndarray'] = None,
             event_id: Optional[Dict[str, int]] = None) -> PipelineResult:
         """
         Run complete pipeline
@@ -172,13 +169,11 @@ class BCIPipeline:
 
         saved = []
 
-        # Save epochs
         if self.epochs is not None:
             epochs_path = output_dir / 'epochs.fif'
             self.epochs.save(epochs_path, overwrite=True)
             saved.append(epochs_path)
 
-        # Save results as JSON
         import json
         results_path = output_dir / 'results.json'
         with open(results_path, 'w') as f:

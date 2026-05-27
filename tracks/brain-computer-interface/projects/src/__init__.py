@@ -1,6 +1,6 @@
 """
 BCI Pipeline Package
-====================
+=====================
 BCI Signal Processing Pipeline - Engineering and Integration
 
 Modules:
@@ -21,18 +21,29 @@ Usage:
     result = pipeline.run('data.edf')
 """
 
+from __future__ import annotations
+
 __version__ = '1.0.0'
 __author__ = 'BCI Learning Journey'
 
 # Import main components for easy access
-from config import PipelineConfig, FilterConfig, EpochConfig, DecodeConfig
-from pipeline import BCIPipeline, PipelineResult
+from config import (
+    PipelineConfig,
+    FilterConfig,
+    EpochConfig,
+    DecodeConfig,
+    create_default_config,
+)
+
+from pipeline import BCIPipeline, PipelineResult, run_pipeline
 
 __all__ = [
     'PipelineConfig',
     'FilterConfig',
     'EpochConfig',
     'DecodeConfig',
+    'create_default_config',
     'BCIPipeline',
     'PipelineResult',
+    'run_pipeline',
 ]

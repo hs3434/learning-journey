@@ -4,10 +4,14 @@ Epocher Module
 Event detection and epoch extraction
 """
 
-from typing import Optional, Dict, Tuple, List
+from __future__ import annotations
+from typing import Optional, Dict, Tuple, List, TYPE_CHECKING
 import logging
 import numpy as np
 from dataclasses import dataclass
+
+if TYPE_CHECKING:
+    import mne
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +31,8 @@ class Epocher:
     def __init__(self, raw: 'mne.io.Raw', config: Optional['EpochConfig'] = None):
         self.raw = raw
         self.config = config
-        self.events = None
-        self.epochs = None
+        self.events: Optional[np.ndarray] = None
+        self.epochs: Optional['mne.Epochs'] = None
 
     def find_events(self, stim_channel: Optional[str] = None,
                     min_duration: float = 0.001) -> np.ndarray:
@@ -42,7 +46,7 @@ class Epocher:
             Events array (n_events, 3)
         """
         logger.info("Finding events")
-        self.events = self.raw.find_event_overlap(
+        self.events = self.raw.find_events(
             stim_channel=stim_channel,
             min_duration=min_duration
         )
@@ -52,7 +56,7 @@ class Epocher:
     def extract_epochs(self, events: Optional[np.ndarray] = None,
                       event_id: Optional[Dict[str, int]] = None,
                       tmin: float = -0.2, tmax: float = 0.5,
-                      baseline: Tuple = (None, 0),
+                      baseline: Tuple[Optional[float], Optional[float]] = (None, 0),
                       preload: bool = True) -> 'mne.Epochs':
         """Extract epochs around events
 
@@ -73,19 +77,21 @@ class Epocher:
             raise ValueError("No events found, call find_events() first")
 
         if event_id is None:
-            # Auto-generate event IDs from unique event values
             unique_events = np.unique(events[:, 2])
             event_id = {f'event_{int(e)}': int(e) for e in unique_events}
 
         logger.info(f"Extracting epochs: {tmin}s to {tmax}s, baseline={baseline}")
+
         from mne import Epochs
+
+        reject = self.config.reject_threshold if self.config else None
 
         self.epochs = Epochs(
             self.raw, events, event_id,
             tmin=tmin, tmax=tmax,
             baseline=baseline,
             preload=preload,
-            reject=self.config.reject_threshold if self.config else None
+            reject=reject
         )
 
         n_rejected = len(self.epochs.drop_log)
@@ -103,7 +109,7 @@ class Epocher:
             n_epochs=len(self.epochs),
             n_rejected=n_rejected,
             rejection_rate=n_rejected / len(self.epochs) if len(self.epochs) > 0 else 0,
-            duration=self.epochs.tmax - self.epochs.tmin
+            duration=float(self.epochs.tmax - self.epochs.tmin)
         )
 
     def get_data(self) -> Tuple[np.ndarray, np.ndarray]:
@@ -120,7 +126,7 @@ class Epocher:
 
 
 def create_epochs(raw: 'mne.io.Raw', events: np.ndarray,
-                  event_id: Dict[str, int], **kwargs) -> 'mne.Epochs':
+                 event_id: Dict[str, int], **kwargs) -> 'mne.Epochs':
     """Convenience function to create epochs"""
     epocher = Epocher(raw)
     return epocher.extract_epochs(events, event_id, **kwargs)

@@ -8,13 +8,12 @@ Usage:
     python -m src.main data.edf --config config.yaml
 """
 
+from __future__ import annotations
 import argparse
 import logging
 import sys
 from pathlib import Path
-from typing import Optional
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -55,12 +54,11 @@ Examples:
 
 def run_cli(args):
     """Run pipeline in CLI mode"""
-    from config import PipelineConfig, FilterConfig, EpochConfig, DecodeConfig
+    from config import PipelineConfig
     from pipeline import BCIPipeline
 
     logger = logging.getLogger(__name__)
 
-    # Create configuration
     config = PipelineConfig()
     config.filter.l_freq = args.l_freq
     config.filter.h_freq = args.h_freq
@@ -70,21 +68,19 @@ def run_cli(args):
     if args.config:
         config = PipelineConfig.from_yaml(Path(args.config))
 
-    # Run pipeline
     logger.info(f"Processing: {args.filepath}")
 
     pipeline = BCIPipeline(config)
     result = pipeline.run(args.filepath)
 
-    # Print results
     if result.success:
         logger.info("=" * 50)
         logger.info("Pipeline completed successfully!")
-        logger.info(f"Accuracy: {result.accuracy:.3f} ± {result.std:.3f}")
+        if result.accuracy is not None:
+            logger.info(f"Accuracy: {result.accuracy:.3f} ± {result.std:.3f}")
         logger.info(f"Steps: {result.steps_completed}")
         logger.info("=" * 50)
 
-        # Save results
         saved = pipeline.save_results()
         logger.info(f"Results saved to: {saved}")
 

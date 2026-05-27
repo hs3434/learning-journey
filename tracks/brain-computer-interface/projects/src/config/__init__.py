@@ -4,11 +4,15 @@ Configuration Management
 BCI Pipeline Configuration - YAML/dataclass/validation
 """
 
-from dataclasses import dataclass, field
-from typing import List, Optional, Tuple, Dict, Any
+from __future__ import annotations
+from dataclasses import dataclass, field, asdict
+from typing import List, Optional, Tuple, Dict, Any, TYPE_CHECKING
 from pathlib import Path
 import yaml
 import logging
+
+if TYPE_CHECKING:
+    from pipeline import BCIPipeline
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +98,7 @@ class PipelineConfig:
     def to_yaml(self, path: Path | str) -> None:
         """Save configuration to YAML file"""
         with open(path, 'w') as f:
-            yaml.dump(self.__dict__, f, default_flow_style=False)
+            yaml.dump(asdict(self), f, default_flow_style=False)
 
 
 def create_default_config() -> PipelineConfig:

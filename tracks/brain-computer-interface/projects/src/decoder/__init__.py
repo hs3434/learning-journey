@@ -1,13 +1,17 @@
 """
 Decoder Module
-==============
+===============
 BCI Decoding: SSVEP, Motor Imagery, P300
 """
 
-from typing import Optional, Tuple, List, Dict
+from __future__ import annotations
+from typing import Optional, Tuple, List, Dict, TYPE_CHECKING
 import logging
 import numpy as np
 from dataclasses import dataclass
+
+if TYPE_CHECKING:
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +33,7 @@ class SSVEPDetector:
         self.target_freqs = target_freqs
         self.fs = fs
         self.n_harmonics = n_harmonics
-        self.templates = self._generate_templates()
+        self.templates: Dict[float, np.ndarray] = self._generate_templates()
 
     def _generate_templates(self) -> Dict[float, np.ndarray]:
         """Generate reference signal templates"""
@@ -56,9 +60,10 @@ class SSVEPDetector:
             C_yy = np.cov(Y)
             C_xy = X @ Y.T
 
-            # Solve CCA
-            A = np.linalg.solve(C_yy, C_xy.T)
-            r = np.corrcoef(np.linalg.solve(C_xx, C_xy).T, np.linalg.solve(C_yy, Y))[0, 1]
+            C_xx_inv = np.linalg.inv(C_xx)
+            C_yy_inv = np.linalg.inv(C_yy)
+
+            r = np.corrcoef(C_xx_inv @ C_xy @ C_yy_inv @ Y)[0, 1]
             return abs(r) if not np.isnan(r) else 0.0
         except np.linalg.LinAlgError:
             return 0.0
@@ -89,13 +94,10 @@ class MIDecoder:
 
         features = []
         for ch in range(data.shape[0]):
-            # Bandpass filter
             nyq = 0.5 * self.fs
             low, high = self.band[0] / nyq, self.band[1] / nyq
             b, a = signal.butter(4, [low, high], btype='band')
             filtered = signal.filtfilt(b, a, data[ch])
-
-            # Band power
             power = np.mean(filtered ** 2)
             features.append(power)
         return np.array(features)
@@ -106,11 +108,9 @@ class MIDecoder:
         from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
         from sklearn.model_selection import cross_val_score
 
-        # Extract features for each epoch
         X = np.array([self.extract_features(epoch) for epoch in epochs_data])
         y = labels
 
-        # LDA classification with cross-validation
         clf = LinearDiscriminantAnalysis()
         scores = cross_val_score(clf, X, y, cv=cv_folds)
 
@@ -126,7 +126,7 @@ class DecoderFactory:
     """Factory for creating decoders"""
 
     @staticmethod
-    def create(method: str, **kwargs) -> 'BCIDecoder':
+    def create(method: str, **kwargs) -> SSVEPDetector | MIDecoder:
         if method == 'ssvep':
             return SSVEPDetector(**kwargs)
         elif method == 'mi':
