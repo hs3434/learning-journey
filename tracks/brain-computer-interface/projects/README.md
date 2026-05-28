@@ -15,10 +15,31 @@ bci/
 
 ## 测试数据
 
+```bash
+# 设置数据目录（按需修改）
+export BCI_DATA=/path/to/bci_data
+mkdir -p $BCI_DATA
+
+# 下载运动想象数据 (PhysioNet EEGBCI)
+uv run python -c "
+import mne, shutil, os
+files = mne.datasets.eegbci.load_data(1, [4, 6, 8, 10], path='$BCI_DATA', update_path=False)
+for f in files:
+    shutil.copy(f, os.path.join('$BCI_DATA', os.path.basename(f)))
+"
+
+# 下载听觉/视觉 ERP 数据 (MNE Sample, ~1.6GB)
+uv run python -c "
+import mne
+mne.datasets.sample.data_path(path='$BCI_DATA', update_path=False)
+"
 ```
-/data/bci/
-├── S001R04.edf ~ S001R10.edf      运动想象 (PhysioNet EEGBCI, 160Hz)
-└── MNE-sample-data/                听觉/视觉 ERP (MNE Sample, 600Hz)
+
+数据下载后目录结构：
+```
+$BCI_DATA/
+├── S001R04.edf ~ S001R10.edf      运动想象 (160Hz, 64ch)
+└── MNE-sample-data/                听觉/视觉 ERP (600Hz, 306ch MEG+EOG+STIM)
 ```
 
 ## 环境配置
@@ -40,8 +61,8 @@ cd projects
 uv sync
 
 # CLI 模式
-uv run bci /data/bci/S001R04.edf --method mi
-uv run bci /data/bci/MNE-sample-data/MEG/sample/sample_audvis_raw.fif --method lda
+uv run bci $BCI_DATA/S001R04.edf --method mi
+uv run bci $BCI_DATA/MNE-sample-data/MEG/sample/sample_audvis_raw.fif --method lda
 
 # GUI 模式 (需要 X11 转发)
 export DISPLAY=localhost:10.0
