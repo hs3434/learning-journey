@@ -1,0 +1,58 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tracks/brain-computer-interface/projects/**'
+  pull_request:
+    paths:
+      - 'tracks/brain-computer-interface/projects/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tracks/brain-computer-interface/projects
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Create virtual environment
+        run: uv venv
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      - name: Install project
+        run: uv pip install -e .
+
+      - name: Run tests
+        run: pytest tests/ -v
+
+      - name: Type check
+        run: uv run pyright bci/
+
+      - name: Coverage report
+        run: pytest tests/ --cov=bci --cov-report=xml --cov-report=html
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: tracks/brain-computer-interface/projects/coverage.xml
+          fail_ci_if_error: false

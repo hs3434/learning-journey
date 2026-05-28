@@ -30,3 +30,21 @@ ignore = ["**/gui/**"]
 
 [tool.pyright.venv]
 pythonPath = ".venv"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["__init__.py"]
+python_functions = ["Test*"]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["bci"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "TYPE_CHECKING",
+]
