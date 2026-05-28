@@ -97,26 +97,11 @@ def run_gui(args):
     """Run pipeline in GUI mode"""
     import os
     if not os.environ.get('DISPLAY'):
-        print("Warning: No X display detected.", file=sys.stderr)
-        print("GUI requires an X server (export DISPLAY=:0 or use SSH -Y).", file=sys.stderr)
-        print("Install xcb deps: sudo apt-get install libxcb-cursor0", file=sys.stderr)
-        print("", file=sys.stderr)
-        print("Falling back to CLI mode. Pass a filepath argument or use --help.", file=sys.stderr)
-        if not args.filepath:
-            print("error: filepath is required in CLI mode", file=sys.stderr)
-            return 1
-        return run_cli(args)
-    try:
-        from bci.gui import main as gui_main
-        gui_main()
-    except Exception as e:
-        print(f"GUI failed: {e}", file=sys.stderr)
-        print("Falling back to CLI mode.", file=sys.stderr)
-        if not args.filepath:
-            print("error: filepath is required in CLI mode", file=sys.stderr)
-            return 1
-        return run_cli(args)
-    return 0
+        print("error: No X display detected. GUI requires an X server.", file=sys.stderr)
+        print("  Set DISPLAY and ensure X11 forwarding: ssh -Y user@host", file=sys.stderr)
+        sys.exit(1)
+    from bci.gui import main as gui_main
+    gui_main()
 
 
 def main():
