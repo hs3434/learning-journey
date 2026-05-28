@@ -13,6 +13,14 @@ bci/
 └── main.py       入口
 ```
 
+## 测试数据
+
+```
+/data/bci/
+├── S001R04.edf ~ S001R10.edf      运动想象 (PhysioNet EEGBCI, 160Hz)
+└── MNE-sample-data/                听觉/视觉 ERP (MNE Sample, 600Hz)
+```
+
 ## 环境配置
 
 ```bash
@@ -32,9 +40,8 @@ cd projects
 uv sync
 
 # CLI 模式
-uv run bci data.edf --method lda
-uv run bci data.edf --method mi
-uv run bci data.edf --method ssvep
+uv run bci /data/bci/S001R04.edf --method mi
+uv run bci /data/bci/MNE-sample-data/MEG/sample/sample_audvis_raw.fif --method lda
 
 # GUI 模式 (需要 X11 转发)
 export DISPLAY=localhost:10.0
