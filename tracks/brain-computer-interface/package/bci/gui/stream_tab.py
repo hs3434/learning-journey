@@ -29,6 +29,7 @@ class StreamTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._filepath: Optional[str] = None
+        self._session_runs: list = []
         self._worker: Optional[StreamWorker] = None
         self._setup_ui()
 
@@ -140,8 +141,17 @@ class StreamTab(QWidget):
             self._on_file_loaded(filepath)
 
     def _on_file_loaded(self, filepath: str):
+        from bci.source import find_session_runs
         self._filepath = filepath
-        self.status_label.setText(f"Loaded: {Path(filepath).name}")
+        runs = find_session_runs(filepath)
+        self._session_runs = [str(r) for r in runs]
+
+        if len(self._session_runs) > 1:
+            self.status_label.setText(
+                f"Session: {Path(filepath).stem} ({len(self._session_runs)} runs)"
+            )
+        else:
+            self.status_label.setText(f"Loaded: {Path(filepath).name}")
         self.start_btn.setEnabled(True)
 
     def _on_start(self):
@@ -155,7 +165,7 @@ class StreamTab(QWidget):
         self.pause_btn.setEnabled(True)
         self.stop_btn.setEnabled(True)
 
-        self._worker = StreamWorker(self._filepath, chunk_duration=0.1)
+        self._worker = StreamWorker(self._session_runs, chunk_duration=0.1)
         self._worker.set_speed(self.speed_input.value())
         self._worker.set_filter(self.l_freq.value(), self.h_freq.value())
         self._worker.set_loop(self.loop_cb.isChecked())

@@ -4,7 +4,7 @@ Batch Tab — Offline Analysis
 Load file → configure params → Run pipeline → view results.
 """
 from __future__ import annotations
-from typing import Optional
+from typing import Optional, List
 from pathlib import Path
 
 from PyQt6.QtWidgets import (
@@ -25,6 +25,7 @@ class BatchTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._filepath: Optional[str] = None
+        self._session_runs: List[str] = []
         self._config = create_default_config()
         self._worker: Optional[BatchWorker] = None
         self._setup_ui()
@@ -116,8 +117,17 @@ class BatchTab(QWidget):
             self._on_file_loaded(filepath)
 
     def _on_file_loaded(self, filepath: str):
+        from bci.source import find_session_runs
         self._filepath = filepath
-        self.status_label.setText(f"Loaded: {Path(filepath).name}")
+        runs = find_session_runs(filepath)
+        self._session_runs = [str(r) for r in runs]
+
+        if len(self._session_runs) > 1:
+            self.status_label.setText(
+                f"Session: {Path(filepath).stem} ({len(self._session_runs)} runs)"
+            )
+        else:
+            self.status_label.setText(f"Loaded: {Path(filepath).name}")
         self.run_btn.setEnabled(True)
 
     def _on_run(self):

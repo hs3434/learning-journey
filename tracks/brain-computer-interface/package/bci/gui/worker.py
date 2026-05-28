@@ -12,7 +12,7 @@ from scipy.signal import welch
 from PyQt6.QtCore import QThread, QObject, pyqtSignal, QTimer
 
 from bci.config import PipelineConfig
-from bci.source import StreamSource
+from bci.source import StreamSource, SessionSource, find_session_runs
 
 
 class BatchWorker(QThread):
@@ -64,17 +64,34 @@ class StreamWorker(QObject):
 
     Connects a StreamSource to an OnlineProcessor and emits
     processed chunks via Qt signals for GUI display.
+
+    Accepts either a single filepath, a list of filepaths (same subject,
+    multiple runs), or a pre-constructed SessionSource.
     """
+
     chunk_processed = pyqtSignal(np.ndarray)
     spectrum_updated = pyqtSignal(np.ndarray, np.ndarray)
     error = pyqtSignal(str)
     finished = pyqtSignal()
     progress = pyqtSignal(int)
 
-    def __init__(self, filepath: str | Path,
+    def __init__(self, filepath_or_list,  # str | Path | List[str] | SessionSource
                  chunk_duration: float = 0.1):
         super().__init__()
-        self.source = StreamSource(filepath, chunk_duration)
+        from bci.source import SessionSource
+
+        if isinstance(filepath_or_list, SessionSource):
+            self.source = filepath_or_list
+        elif isinstance(filepath_or_list, (list, tuple)):
+            run_paths = [Path(p) for p in filepath_or_list]
+            self.source = SessionSource(run_paths[0])
+        else:
+            run_paths = find_session_runs(filepath_or_list)
+            if len(run_paths) > 1:
+                self.source = SessionSource(run_paths[0])
+            else:
+                self.source = StreamSource(filepath_or_list, chunk_duration)
+
         self._timer: Optional[QTimer] = None
         self._filter_enabled = True
         self._l_freq = 0.5
@@ -82,6 +99,7 @@ class StreamWorker(QObject):
         self._speed = 1.0
         self._online_proc = None
         self._chunk_samples = 0
+        self._chunk_duration = chunk_duration
 
     def start(self):
         """Start streaming data from file."""
