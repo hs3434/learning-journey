@@ -95,10 +95,38 @@ class BCIMainWindow(QMainWindow):
         )
 
 
+def _setup_chinese_fonts():
+    """Configure Qt and matplotlib for Chinese character support."""
+    from PyQt6.QtWidgets import QApplication
+    from PyQt6.QtGui import QFont
+    chinese_fonts = [
+        'WenQuanYi Micro Hei', 'Noto Sans CJK SC',
+        'WenQuanYi Zen Hei', 'SimHei', 'Microsoft YaHei',
+    ]
+    available = QFont()
+    default_family = available.defaultFamily()
+    matched = None
+    for name in chinese_fonts:
+        font = QFont(name)
+        if font.exactMatch():
+            matched = name
+            break
+
+    if matched is None:
+        return default_family
+
+    QApplication.instance().setFont(QFont(matched, 10))
+    import matplotlib
+    matplotlib.rcParams['font.sans-serif'] = [matched, 'DejaVu Sans']
+    matplotlib.rcParams['axes.unicode_minus'] = False
+    return matched
+
+
 def main():
     """GUI entry point."""
     try:
         from PyQt6.QtWidgets import QApplication
+        from PyQt6.QtGui import QFont
     except ImportError:
         print("Error: PyQt6 is required for GUI", file=sys.stderr)
         print("Install with: pip install PyQt6", file=sys.stderr)
@@ -106,6 +134,10 @@ def main():
 
     app = QApplication(sys.argv)
     app.setStyle('Fusion')
+
+    font_family = _setup_chinese_fonts()
+    print(f"Using font: {font_family}", file=sys.stderr)
+
     window = BCIMainWindow()
     window.show()
     sys.exit(app.exec())
