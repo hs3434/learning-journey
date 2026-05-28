@@ -1,6 +1,6 @@
 """
-Week 4 Day 9：时频分析 + ERD/ERS
-简化和弦月环境兼容版（单线程 + 轻量数据）
+Week 4 Day 4: Time-Frequency Analysis & ERD/ERS
+时频分析、ERD/ERS、可视化
 """
 
 import os

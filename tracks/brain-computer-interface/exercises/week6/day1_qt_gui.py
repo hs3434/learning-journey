@@ -1,6 +1,6 @@
 """
-Day 16: Qt GUI Architecture for BCI — Static Visualization
-(No display server in Docker — generate architecture diagrams instead)
+Day 16: Qt GUI Architecture for BCI — Static Architecture Diagrams
+(Docker has no display server — generate architecture diagrams instead)
 
 Topics:
 1. Qt signal-slot mechanism visualization
@@ -8,6 +8,9 @@ Topics:
 3. Thread model — UI thread vs worker threads
 4. MVC architecture for BCI
 5. Data flow pipeline: acquisition → processing → display
+
+Note: Actual running Qt code is in projects/bci/gui/__init__.py
+This exercise demonstrates Qt concepts through diagrams since we can't run GUI in Docker.
 """
 
 import matplotlib
