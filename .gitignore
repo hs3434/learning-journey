@@ -37,3 +37,4 @@ mne_data/
 # Jupyter
 .ipynb_checkpoints/
 output/
+.superpowers/

@@ -13,7 +13,7 @@ dependencies = [
     "mne>=1.7",
     "scikit-learn>=1.5",
     "pyyaml>=6.0",
-    "pyqt6>=6.0",
+    "pyqt6>=6.11.0",
 ]
 
 [project.scripts]
@@ -30,3 +30,8 @@ ignore = ["**/gui/**"]
 
 [tool.pyright.venv]
 pythonPath = ".venv"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]
