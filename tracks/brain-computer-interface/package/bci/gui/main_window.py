@@ -9,7 +9,7 @@ from pathlib import Path
 
 from PyQt6.QtWidgets import (
     QMainWindow, QTabWidget, QStatusBar, QMenuBar, QMenu,
-    QFileDialog, QMessageBox, QApplication,
+    QMessageBox, QApplication,
 )
 from PyQt6.QtCore import Qt
 
@@ -66,19 +66,16 @@ class BCIMainWindow(QMainWindow):
         self._status.showMessage("Ready — Load an EEG file to begin")
 
     def _on_load(self):
-        filepath, _ = QFileDialog.getOpenFileName(
-            self, "Select EEG File", "",
-            "EEG Files (*.edf *.fif *.set *.vhdr);;All Files (*)"
-        )
-        if not filepath:
+        from bci.gui.session_loader import open_session_files
+        filepaths = open_session_files(self)
+        if not filepaths:
             return
-        self._status.showMessage(f"Loaded: {Path(filepath).name}")
 
-        current_idx = self._tabs.currentIndex()
-        if current_idx == 0:
-            self.batch_tab._on_file_loaded(filepath)
+        current = self._tabs.currentWidget()
+        if current == self.batch_tab:
+            self.batch_tab._on_files_loaded([str(p) for p in filepaths])
         else:
-            self.stream_tab._on_file_loaded(filepath)
+            self.stream_tab._on_files_loaded([str(p) for p in filepaths])
 
     def _on_tab_changed(self, index: int):
         names = ["离线分析", "实时查看"]

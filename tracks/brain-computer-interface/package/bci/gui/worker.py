@@ -4,7 +4,7 @@ Worker Threads
 Background workers for batch processing and real-time streaming.
 """
 from __future__ import annotations
-from typing import Optional
+from typing import Optional, List
 import numpy as np
 from pathlib import Path
 from scipy.signal import welch
@@ -18,27 +18,34 @@ from bci.source import StreamSource, SessionSource, find_session_runs
 class BatchWorker(QThread):
     """Background pipeline execution worker (offline batch mode).
 
-    Fixes the hardcoded "data.edf" bug from the original GUI — filepath
-    is now a constructor parameter.
+    Accepts one or more filepaths. When multiple paths are given,
+    they are concatenated via SessionSource before processing.
     """
     progress = pyqtSignal(int)
     log = pyqtSignal(str)
     finished = pyqtSignal(object)
     error = pyqtSignal(str)
 
-    def __init__(self, filepath: str, config: PipelineConfig):
+    def __init__(self, filepaths: List[str], config: PipelineConfig):
         super().__init__()
-        self.filepath = str(filepath)
+        self.filepaths = list(filepaths)
         self.config = config
 
     def run(self):
         try:
             from bci.pipeline import BCIPipeline
             self.progress.emit(10)
-            self.log.emit(f"Loading: {self.filepath}")
+
+            if len(self.filepaths) > 1:
+                from bci.source import SessionSource
+                self.log.emit(f"Loading session: {len(self.filepaths)} runs")
+                source = SessionSource(Path(self.filepaths[0]))
+                source.open()
+            else:
+                self.log.emit(f"Loading: {self.filepaths[0]}")
 
             pipeline = BCIPipeline(self.config)
-            pipeline.load(Path(self.filepath))
+            pipeline.load(Path(self.filepaths[0]))
             self.progress.emit(30)
             self.log.emit("Preprocessing...")
 

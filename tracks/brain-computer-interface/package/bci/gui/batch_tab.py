@@ -10,7 +10,7 @@ from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
     QGroupBox, QDoubleSpinBox, QComboBox, QSpinBox, QTextEdit,
-    QProgressBar, QFileDialog, QMessageBox,
+    QProgressBar, QMessageBox,
 )
 from PyQt6.QtCore import Qt
 
@@ -24,8 +24,7 @@ class BatchTab(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._filepath: Optional[str] = None
-        self._session_runs: List[str] = []
+        self._filepaths: List[str] = []
         self._config = create_default_config()
         self._worker: Optional[BatchWorker] = None
         self._setup_ui()
@@ -109,29 +108,28 @@ class BatchTab(QWidget):
         layout.addLayout(bottom)
 
     def _on_load(self):
-        filepath, _ = QFileDialog.getOpenFileName(
-            self, "Select EEG File", "",
-            "EEG Files (*.edf *.fif *.set *.vhdr);;All Files (*)"
-        )
-        if filepath:
-            self._on_file_loaded(filepath)
+        from bci.gui.session_loader import open_session_files
+        filepaths = open_session_files(self)
+        if filepaths:
+            self._on_files_loaded([str(p) for p in filepaths])
 
-    def _on_file_loaded(self, filepath: str):
-        from bci.source import find_session_runs
-        self._filepath = filepath
-        runs = find_session_runs(filepath)
-        self._session_runs = [str(r) for r in runs]
-
-        if len(self._session_runs) > 1:
+    def _on_files_loaded(self, filepaths: List[str]):
+        import re
+        self._filepaths = filepaths
+        n = len(filepaths)
+        if n > 1:
+            stem = Path(filepaths[0]).stem
+            match = re.match(r'^(.*)R\d+$', stem)
+            base = match.group(1) if match else stem
             self.status_label.setText(
-                f"Session: {Path(filepath).stem} ({len(self._session_runs)} runs)"
+                f"Session: {base} ({n} runs)"
             )
         else:
-            self.status_label.setText(f"Loaded: {Path(filepath).name}")
+            self.status_label.setText(f"Loaded: {Path(filepaths[0]).name}")
         self.run_btn.setEnabled(True)
 
     def _on_run(self):
-        if self._filepath is None:
+        if not self._filepaths:
             return
         self._config.filter.l_freq = self.l_freq.value()
         self._config.filter.h_freq = self.h_freq.value()
@@ -144,7 +142,7 @@ class BatchTab(QWidget):
         self.progress.setValue(0)
         self.status_label.setText("Running pipeline...")
 
-        self._worker = BatchWorker(self._filepath, self._config)
+        self._worker = BatchWorker(self._filepaths, self._config)
         self._worker.log.connect(self.log_area.append)
         self._worker.progress.connect(self.progress.setValue)
         self._worker.finished.connect(self._on_finished)
@@ -171,11 +169,11 @@ class BatchTab(QWidget):
         QMessageBox.warning(self, "Pipeline Error", msg)
 
     def _on_save(self):
-        if self._worker is None:
+        if self._worker is None or not self._filepaths:
             return
         from bci.pipeline import BCIPipeline
         pipeline = BCIPipeline(self._config)
-        pipeline.run(Path(self._filepath))
+        pipeline.run(Path(self._filepaths[0]))
         saved = pipeline.save_results()
         self.log_area.append(f"Saved to: {saved}")
         QMessageBox.information(

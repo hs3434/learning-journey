@@ -55,7 +55,7 @@ class TestBatchTab:
     def test_load_file(self, qapp, fake_edf):
         from bci.gui.batch_tab import BatchTab
         tab = BatchTab()
-        tab._on_file_loaded(fake_edf)
+        tab._on_files_loaded([fake_edf])
 
     def test_run_disabled_without_file(self, qapp):
         from bci.gui.batch_tab import BatchTab
@@ -65,7 +65,7 @@ class TestBatchTab:
     def test_load_enables_run(self, qapp, fake_edf):
         from bci.gui.batch_tab import BatchTab
         tab = BatchTab()
-        tab._on_file_loaded(fake_edf)
+        tab._on_files_loaded([fake_edf])
         assert tab.run_btn.isEnabled()
 
 
@@ -113,7 +113,7 @@ class TestStreamTab:
     def test_load_enables_start(self, qapp, fake_edf):
         from bci.gui.stream_tab import StreamTab
         tab = StreamTab()
-        tab._on_file_loaded(fake_edf)
+        tab._on_files_loaded([fake_edf])
         assert tab.start_btn.isEnabled()
 
     def test_speed_slider_updates_input(self, qapp):

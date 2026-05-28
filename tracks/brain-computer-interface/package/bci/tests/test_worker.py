@@ -46,14 +46,14 @@ class TestBatchWorker:
 
     def test_construction(self, qapp, fake_edf, default_config):
         from bci.gui.worker import BatchWorker
-        worker = BatchWorker(fake_edf, default_config)
+        worker = BatchWorker([fake_edf], default_config)
         assert worker is not None
-        assert worker.filepath == str(fake_edf)
+        assert worker.filepaths == [str(fake_edf)]
 
     def test_signals_exist(self, qapp, fake_edf, default_config):
         from bci.gui.worker import BatchWorker
         from PyQt6.QtCore import pyqtSignal
-        worker = BatchWorker(fake_edf, default_config)
+        worker = BatchWorker([fake_edf], default_config)
         assert hasattr(worker, 'progress')
         assert hasattr(worker, 'log')
         assert hasattr(worker, 'finished')
@@ -62,7 +62,7 @@ class TestBatchWorker:
     def test_run_emits_signals(self, qapp, fake_edf, default_config):
         from bci.gui.worker import BatchWorker
 
-        worker = BatchWorker(fake_edf, default_config)
+        worker = BatchWorker([fake_edf], default_config)
         logs = []
         progresses = []
         errors = []
@@ -84,7 +84,7 @@ class TestBatchWorker:
 
     def test_run_with_invalid_file_emits_error(self, qapp, default_config):
         from bci.gui.worker import BatchWorker
-        worker = BatchWorker("/nonexistent/file.edf", default_config)
+        worker = BatchWorker(["/nonexistent/file.edf"], default_config)
         errors = []
         worker.error.connect(errors.append)
         worker.run()

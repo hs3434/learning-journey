@@ -10,6 +10,17 @@ import re
 import tempfile
 from pathlib import Path
 
+os.environ['QT_QPA_PLATFORM'] = 'offscreen'
+
+
+@pytest.fixture(scope='module')
+def qapp():
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication([""])
+    yield app
+
 
 def _create_fake_fif(filepath: str, n_channels: int = 4, n_samples: int = 1000, sfreq: float = 256.0):
     """Create a fake FIF file (MNE's preferred format)."""
@@ -170,21 +181,24 @@ class TestSessionSource:
 
 
 class TestBatchTabSessionLoading:
-    """BatchTab detects session pattern"""
+    """BatchTab _on_files_loaded interface"""
 
-    def test_load_session_detects_4_runs(self):
+    def test_multi_files_session_display(self, qapp):
         with tempfile.TemporaryDirectory() as tmp:
             for run in [4, 6, 8, 10]:
                 _create_fake_fif(os.path.join(tmp, f'S001R{run:02d}.fif'))
+            paths = [os.path.join(tmp, f'S001R{run:02d}.fif') for run in [4, 6, 8, 10]]
             from bci.gui.batch_tab import BatchTab
             tab = BatchTab()
-            tab._on_file_loaded(os.path.join(tmp, 'S001R04.fif'))
-            assert len(tab._session_runs) == 4
+            tab._on_files_loaded(paths)
+            assert len(tab._filepaths) == 4
+            assert "4 runs" in tab.status_label.text()
 
-    def test_load_single_file(self):
+    def test_load_single_file(self, qapp):
         with tempfile.TemporaryDirectory() as tmp:
             _create_fake_fif(os.path.join(tmp, 'solo.fif'))
             from bci.gui.batch_tab import BatchTab
             tab = BatchTab()
-            tab._on_file_loaded(os.path.join(tmp, 'solo.fif'))
-            assert len(tab._session_runs) == 1
+            tab._on_files_loaded([os.path.join(tmp, 'solo.fif')])
+            assert len(tab._filepaths) == 1
+            assert "Loaded" in tab.status_label.text()

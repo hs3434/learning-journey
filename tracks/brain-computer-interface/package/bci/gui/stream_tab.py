@@ -10,7 +10,7 @@ from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
     QGroupBox, QDoubleSpinBox, QSlider, QCheckBox, QTextEdit,
-    QProgressBar, QFileDialog, QMessageBox,
+    QProgressBar, QMessageBox,
 )
 from PyQt6.QtCore import Qt
 
@@ -28,8 +28,7 @@ class StreamTab(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._filepath: Optional[str] = None
-        self._session_runs: list = []
+        self._filepaths: List[str] = []
         self._worker: Optional[StreamWorker] = None
         self._setup_ui()
 
@@ -38,6 +37,10 @@ class StreamTab(QWidget):
         layout.setContentsMargins(8, 8, 8, 8)
 
         toolbar = QHBoxLayout()
+        self.load_btn = QPushButton("Load EEG File")
+        self.load_btn.clicked.connect(self._on_load)
+        toolbar.addWidget(self.load_btn)
+
         self.start_btn = QPushButton("▶ Start")
         self.start_btn.clicked.connect(self._on_start)
         self.start_btn.setEnabled(False)
@@ -133,29 +136,28 @@ class StreamTab(QWidget):
         layout.addWidget(self.progress)
 
     def _on_load(self):
-        filepath, _ = QFileDialog.getOpenFileName(
-            self, "Select EEG File", "",
-            "EEG Files (*.edf *.fif *.set *.vhdr);;All Files (*)"
-        )
-        if filepath:
-            self._on_file_loaded(filepath)
+        from bci.gui.session_loader import open_session_files
+        filepaths = open_session_files(self)
+        if filepaths:
+            self._on_files_loaded([str(p) for p in filepaths])
 
-    def _on_file_loaded(self, filepath: str):
-        from bci.source import find_session_runs
-        self._filepath = filepath
-        runs = find_session_runs(filepath)
-        self._session_runs = [str(r) for r in runs]
-
-        if len(self._session_runs) > 1:
+    def _on_files_loaded(self, filepaths: List[str]):
+        import re
+        self._filepaths = filepaths
+        n = len(filepaths)
+        if n > 1:
+            stem = Path(filepaths[0]).stem
+            match = re.match(r'^(.*)R\d+$', stem)
+            base = match.group(1) if match else stem
             self.status_label.setText(
-                f"Session: {Path(filepath).stem} ({len(self._session_runs)} runs)"
+                f"Session: {base} ({n} runs)"
             )
         else:
-            self.status_label.setText(f"Loaded: {Path(filepath).name}")
+            self.status_label.setText(f"Loaded: {Path(filepaths[0]).name}")
         self.start_btn.setEnabled(True)
 
     def _on_start(self):
-        if self._filepath is None:
+        if not self._filepaths:
             return
         if self._worker is not None:
             return
@@ -165,7 +167,7 @@ class StreamTab(QWidget):
         self.pause_btn.setEnabled(True)
         self.stop_btn.setEnabled(True)
 
-        self._worker = StreamWorker(self._session_runs, chunk_duration=0.1)
+        self._worker = StreamWorker(self._filepaths, chunk_duration=0.1)
         self._worker.set_speed(self.speed_input.value())
         self._worker.set_filter(self.l_freq.value(), self.h_freq.value())
         self._worker.set_loop(self.loop_cb.isChecked())
