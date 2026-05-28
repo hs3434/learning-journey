@@ -69,7 +69,11 @@ class Preprocessor:
         Returns:
             self
         """
+        nyq = self.raw.info['sfreq'] / 2.0
         for freq in freqs:
+            if freq >= nyq:
+                logger.debug(f"Skipping notch {freq} Hz (Nyquist={nyq:.1f} Hz)")
+                continue
             logger.info(f"Notch filter: {freq} Hz")
             self.raw.notch_filter(freqs=freq)
         return self

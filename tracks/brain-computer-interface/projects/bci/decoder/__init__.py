@@ -253,7 +253,9 @@ def decode(epochs_data: np.ndarray, labels: np.ndarray,
         from sklearn.model_selection import cross_val_score  # type: ignore
 
         clf = LinearDiscriminantAnalysis()
-        scores = cross_val_score(clf, epochs_data, labels, cv=cv_folds)
+        # LDA needs 2D input: flatten (n_epochs, n_channels, n_samples) -> (n_epochs, n_channels * n_samples)
+        X = epochs_data.reshape(epochs_data.shape[0], -1)
+        scores = cross_val_score(clf, X, labels, cv=cv_folds)
 
         return DecodeResult(
             accuracy=float(scores.mean()),

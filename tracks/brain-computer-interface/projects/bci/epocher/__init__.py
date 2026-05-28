@@ -55,6 +55,8 @@ class Epocher:
                     min_duration: float = 0.001) -> np.ndarray:
         """Find events in the data
 
+        Tries stim channel first, then falls back to annotations.
+
         Args:
             stim_channel: Stimulus channel name. If None, uses default.
             min_duration: Minimum event duration (s)
@@ -65,11 +67,18 @@ class Epocher:
         if self.raw is None:
             raise RuntimeError("No raw data loaded, call load() first")
         import mne
-        self.events = mne.find_events(  # type: ignore
-            self.raw,
-            stim_channel=stim_channel,
-            min_duration=int(min_duration)
-        )
+
+        try:
+            self.events = mne.find_events(  # type: ignore
+                self.raw,
+                stim_channel=stim_channel,
+                min_duration=int(min_duration)
+            )
+        except ValueError:
+            logger.info("No stim channel, trying annotations...")
+            self.events, event_id = mne.events_from_annotations(self.raw)  # type: ignore
+            logger.info(f"Found event IDs from annotations: {event_id}")
+
         if self.events is None or len(self.events) == 0:
             raise RuntimeError("No events found in data")
         logger.info(f"Found {len(self.events)} events")
@@ -107,6 +116,9 @@ class Epocher:
         from mne import Epochs
 
         reject = self.config.reject_threshold if self.config else None
+        if reject:
+            valid_types = set(self.raw.get_channel_types())
+            reject = {k: v for k, v in reject.items() if k in valid_types}
 
         self.epochs = Epochs(
             self.raw, events, event_id,

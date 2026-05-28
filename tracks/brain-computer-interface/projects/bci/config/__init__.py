@@ -41,8 +41,7 @@ class EpochConfig:
     tmax: float = 0.5
     baseline: Tuple[Optional[float], Optional[float]] = (None, 0)
     reject_threshold: Dict[str, float] = field(default_factory=lambda: {
-        'eeg': 150e-6,
-        'eog': 250e-6
+        'eeg': 150e-6
     })
 
     def validate(self) -> bool:

@@ -161,8 +161,9 @@ class BCIPipeline:
             data = self.epochs.get_data()
             labels = self.epochs.events[:, 2]
 
+            sfreq = self.epochs.info['sfreq']
             result = decode_fn(data, labels, method=self.config.decode.method,
-                               cv_folds=self.config.decode.cv_folds)
+                               cv_folds=self.config.decode.cv_folds, fs=sfreq)
 
             self.result = PipelineResult(
                 success=True,
