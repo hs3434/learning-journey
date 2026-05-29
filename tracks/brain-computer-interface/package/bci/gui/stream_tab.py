@@ -15,7 +15,8 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 
 from bci.gui.widgets import (
-    EEGWaveformWidget, SpectrumWidget, TopomapWidget, ResultPanel
+    EEGWaveformWidget, SpectrumWidget, TopomapWidget, ResultPanel,
+    EEGInfoPanel,
 )
 from bci.gui.worker import StreamWorker, LoadWorker
 from bci.source import SessionSource
@@ -63,8 +64,8 @@ class StreamTab(QWidget):
         toolbar.addWidget(QLabel("Speed:"))
 
         self.speed_slider = QSlider(Qt.Orientation.Horizontal)
-        self.speed_slider.setRange(25, 10000)  # 0.25x to 100x (×100)
-        self.speed_slider.setValue(100)  # 1x
+        self.speed_slider.setRange(25, 10000)
+        self.speed_slider.setValue(100)
         self.speed_slider.setMaximumWidth(150)
         self.speed_slider.valueChanged.connect(self._on_speed_slider_changed)
         toolbar.addWidget(self.speed_slider)
@@ -86,6 +87,9 @@ class StreamTab(QWidget):
         self.status_label.setStyleSheet("color: #888;")
         toolbar.addWidget(self.status_label)
         layout.addLayout(toolbar)
+
+        self.info_panel = EEGInfoPanel()
+        layout.addWidget(self.info_panel)
 
         params = QGroupBox("Filter")
         params_layout = QHBoxLayout()
@@ -158,6 +162,19 @@ class StreamTab(QWidget):
         if filepaths:
             self._on_files_loaded([str(p) for p in filepaths])
 
+    def _stop_workers(self):
+        if self._worker is not None:
+            self._worker.pause()
+            self._worker = None
+        if self._load_worker is not None and self._load_worker.isRunning():
+            self._load_worker.quit()
+            self._load_worker.wait()
+            self._load_worker = None
+        self.info_panel.clear()
+
+    def shutdown(self):
+        self._stop_workers()
+
     def _on_files_loaded(self, filepaths: List[str]):
         import re
         self._filepaths = filepaths
@@ -195,6 +212,7 @@ class StreamTab(QWidget):
         self._load_worker = None
         self.load_progress_bar.setVisible(False)
         self.load_label.setVisible(False)
+        self.info_panel.show_stream(source)
         self.status_label.setText(
             f"Ready — {source.n_channels} ch, "
             f"{source.total_samples / source.sfreq:.1f}s"
@@ -238,7 +256,8 @@ class StreamTab(QWidget):
 
     def _on_pause(self):
         if self._worker is not None:
-            self._worker.stop()
+            self._worker.pause()
+            self._worker = None
             self.pause_btn.setEnabled(False)
             self.start_btn.setEnabled(True)
             self.start_btn.setText("▶ Resume")
@@ -249,6 +268,7 @@ class StreamTab(QWidget):
             self._worker.stop()
             self._worker = None
         self._source = None
+        self.info_panel.clear()
         self.pause_btn.setEnabled(False)
         self.stop_btn.setEnabled(False)
         self.start_btn.setEnabled(True)
@@ -260,6 +280,7 @@ class StreamTab(QWidget):
     def _on_chunk(self, chunk):
         self.waveform_widget.update_stream(chunk)
         self.spectrum_widget.update_psd(chunk, self._source.sfreq)
+        self.info_panel.update_elapsed(self._source)
 
     def _on_stream_finished(self):
         self.status_label.setText("Playback complete")

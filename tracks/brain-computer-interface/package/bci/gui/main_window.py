@@ -5,13 +5,11 @@ Tabbed BCI viewer: offline analysis + real-time viewing.
 """
 from __future__ import annotations
 import sys
-from pathlib import Path
 
 from PyQt6.QtWidgets import (
-    QMainWindow, QTabWidget, QStatusBar, QMenuBar, QMenu,
-    QMessageBox, QApplication,
+    QMainWindow, QTabWidget, QStatusBar, QMessageBox, QApplication,
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QCloseEvent
 
 from bci.gui.batch_tab import BatchTab
 from bci.gui.stream_tab import StreamTab
@@ -31,6 +29,11 @@ class BCIMainWindow(QMainWindow):
         self._setup_menu()
         self._setup_tabs()
         self._setup_status()
+
+    def closeEvent(self, event: QCloseEvent):
+        self.batch_tab.shutdown()
+        self.stream_tab.shutdown()
+        event.accept()
 
     def _setup_menu(self):
         menubar = self.menuBar()
@@ -93,7 +96,6 @@ class BCIMainWindow(QMainWindow):
 
 def _setup_chinese_fonts():
     """Configure Qt and matplotlib for Chinese character support."""
-    from PyQt6.QtWidgets import QApplication
     from PyQt6.QtGui import QFont
     chinese_fonts = [
         'WenQuanYi Micro Hei', 'Noto Sans CJK SC',

@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (
 )
 
 from bci.config import create_default_config
-from bci.gui.widgets import EEGWaveformWidget, ResultPanel
+from bci.gui.widgets import EEGWaveformWidget, ResultPanel, EEGInfoPanel
 from bci.gui.worker import BatchWorker, LoadWorker
 from bci.source import SessionSource
 
@@ -55,6 +55,9 @@ class BatchTab(QWidget):
         self.status_label.setStyleSheet("color: #888;")
         toolbar.addWidget(self.status_label)
         layout.addLayout(toolbar)
+
+        self.info_panel = EEGInfoPanel()
+        layout.addWidget(self.info_panel)
 
         params = QGroupBox("Parameters")
         params_layout = QHBoxLayout()
@@ -122,14 +125,23 @@ class BatchTab(QWidget):
         layout.addLayout(bottom)
 
     def _on_load(self):
-        if self._worker is not None and self._worker.isRunning():
-            self._worker.quit()
-            self._worker.wait()
-            self._worker = None
+        self._stop_workers()
         from bci.gui.session_loader import open_session_files
         filepaths = open_session_files(self)
         if filepaths:
             self._on_files_loaded([str(p) for p in filepaths])
+
+    def _stop_workers(self):
+        for w in (self._worker, self._load_worker):
+            if w is not None and w.isRunning():
+                w.quit()
+                w.wait()
+        self._worker = None
+        self._load_worker = None
+        self.info_panel.clear()
+
+    def shutdown(self):
+        self._stop_workers()
 
     def _on_files_loaded(self, filepaths: List[str]):
         import re
@@ -165,6 +177,7 @@ class BatchTab(QWidget):
         self._load_worker = None
         self.load_progress_bar.setVisible(False)
         self.load_label.setVisible(False)
+        self.info_panel.show_batch(source)
         self.status_label.setText(
             f"Ready — {source.n_channels} ch, "
             f"{source.total_samples / source.sfreq:.1f}s"

@@ -5,7 +5,7 @@ BCI Pipeline Orchestrator
 """
 
 from __future__ import annotations
-from typing import Optional, Dict, Any, List, TYPE_CHECKING
+from typing import Optional, Dict, List, TYPE_CHECKING
 from pathlib import Path
 import logging
 from dataclasses import dataclass, field
@@ -80,7 +80,6 @@ class BCIPipeline:
     """
 
     def __init__(self, config: 'PipelineConfig'):
-        from bci.config import PipelineConfig
         self.config = config
         self.logger = logging.getLogger(__name__)
 
@@ -161,9 +160,22 @@ class BCIPipeline:
             data = self.epochs.get_data()
             labels = self.epochs.events[:, 2]
 
+            n_epochs = len(labels)
+            if n_epochs < 2:
+                raise RuntimeError(
+                    f"Need at least 2 epochs for decoding, got {n_epochs}. "
+                    "Try a longer recording or adjust event detection parameters."
+                )
+            cv_folds = min(self.config.decode.cv_folds, n_epochs)
+            if cv_folds < self.config.decode.cv_folds:
+                self.logger.warning(
+                    f"Reducing cv_folds from {self.config.decode.cv_folds} "
+                    f"to {cv_folds} (only {n_epochs} epochs)"
+                )
+
             sfreq = self.epochs.info['sfreq']
             result = decode_fn(data, labels, method=self.config.decode.method,
-                               cv_folds=self.config.decode.cv_folds, fs=sfreq)
+                               cv_folds=cv_folds, fs=sfreq)
 
             self.result = PipelineResult(
                 success=True,

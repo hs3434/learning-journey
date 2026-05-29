@@ -134,8 +134,14 @@ class StreamWorker(QObject):
         self._timer.timeout.connect(self._emit_chunk)
         self._timer.start(max(1, interval_ms))
 
+    def pause(self):
+        """Pause streaming without closing the source."""
+        if self._timer is not None:
+            self._timer.stop()
+            self._timer = None
+
     def stop(self):
-        """Stop streaming."""
+        """Stop streaming and close the source."""
         if self._timer is not None:
             self._timer.stop()
             self._timer = None
