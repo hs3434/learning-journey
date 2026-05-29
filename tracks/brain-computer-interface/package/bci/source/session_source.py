@@ -6,7 +6,7 @@ Loads a session directory containing multiple runs from the same subject
 concatenates them into a single stream for batch or streaming use.
 """
 from __future__ import annotations
-from typing import Optional, List
+from typing import Optional, List, Callable
 from pathlib import Path
 import numpy as np
 import re
@@ -41,10 +41,14 @@ class SessionSource:
     drop-in for FileSource or StreamSource in batch/stream modes.
     """
 
-    def __init__(self, filepath: str | Path, chunk_duration: float = 0.1):
-        self.filepath = Path(filepath)
+    def __init__(self, filepath: str | Path | List[str] | List[Path], chunk_duration: float = 0.1):
+        if isinstance(filepath, (list, tuple)):
+            self._runs: List[Path] = [Path(p) for p in filepath]
+            self.filepath = self._runs[0] if self._runs else Path(".")
+        else:
+            self._runs: List[Path] = []
+            self.filepath = Path(filepath)
         self.chunk_duration = chunk_duration
-        self._runs: List[Path] = []
         self._raws: List = []  # mne.io.Raw objects
         self._data_list: List[np.ndarray] = []
         self._position = 0
@@ -53,20 +57,24 @@ class SessionSource:
         self._speed = 1.0
         self._closed = False
 
-    def open(self) -> None:
+    def open(self, progress_callback: Optional[Callable[[int, int], None]] = None) -> None:
         import mne
 
-        self._runs = find_session_runs(self.filepath)
+        if not self._runs:
+            self._runs = find_session_runs(self.filepath)
+        total_runs = len(self._runs)
         self._raws = []
         self._data_list = []
         self._total_samples = 0
 
-        for run_path in self._runs:
+        for i, run_path in enumerate(self._runs):
             raw = mne.io.read_raw(run_path, preload=False, verbose=False)
             self._raws.append(raw)
             data = raw.get_data()
             self._data_list.append(data)
             self._total_samples += data.shape[1]
+            if progress_callback is not None:
+                progress_callback(i + 1, total_runs)
 
         self._position = 0
         self._closed = False
@@ -132,9 +140,6 @@ class SessionSource:
 
     def set_loop(self, enabled: bool) -> None:
         self._loop = enabled
-
-    def set_speed(self, speed: float) -> None:
-        self._speed = max(0.01, speed)
 
     def set_speed(self, speed: float) -> None:
         self._speed = max(0.01, speed)

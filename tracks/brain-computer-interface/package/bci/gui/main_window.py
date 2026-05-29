@@ -34,7 +34,6 @@ class BCIMainWindow(QMainWindow):
 
     def _setup_menu(self):
         menubar = self.menuBar()
-
         file_menu = menubar.addMenu("File")
         load_action = file_menu.addAction("Load EEG File...")
         load_action.triggered.connect(self._on_load)

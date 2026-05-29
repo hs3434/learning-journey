@@ -4,7 +4,7 @@ Stream Tab — Real-Time Viewing
 Simulated live feed from file with playback controls.
 """
 from __future__ import annotations
-from typing import Optional
+from typing import Optional, List
 from pathlib import Path
 
 from PyQt6.QtWidgets import (
@@ -17,7 +17,8 @@ from PyQt6.QtCore import Qt
 from bci.gui.widgets import (
     EEGWaveformWidget, SpectrumWidget, TopomapWidget, ResultPanel
 )
-from bci.gui.worker import StreamWorker
+from bci.gui.worker import StreamWorker, LoadWorker
+from bci.source import SessionSource
 
 
 class StreamTab(QWidget):
@@ -29,7 +30,9 @@ class StreamTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._filepaths: List[str] = []
+        self._source: Optional[SessionSource] = None
         self._worker: Optional[StreamWorker] = None
+        self._load_worker: Optional[LoadWorker] = None
         self._setup_ui()
 
     def _setup_ui(self):
@@ -135,7 +138,21 @@ class StreamTab(QWidget):
         self.progress = QProgressBar()
         layout.addWidget(self.progress)
 
+        self.load_label = QLabel("")
+        self.load_label.setStyleSheet("color: #aaa; font-size: 11px;")
+        self.load_label.setVisible(False)
+        layout.addWidget(self.load_label)
+
+        self.load_progress_bar = QProgressBar()
+        self.load_progress_bar.setVisible(False)
+        self.load_progress_bar.setMaximumHeight(16)
+        layout.addWidget(self.load_progress_bar)
+
     def _on_load(self):
+        if self._worker is not None:
+            self._worker.stop()
+            self._worker = None
+        self._source = None
         from bci.gui.session_loader import open_session_files
         filepaths = open_session_files(self)
         if filepaths:
@@ -149,15 +166,51 @@ class StreamTab(QWidget):
             stem = Path(filepaths[0]).stem
             match = re.match(r'^(.*)R\d+$', stem)
             base = match.group(1) if match else stem
-            self.status_label.setText(
-                f"Session: {base} ({n} runs)"
-            )
+            self.status_label.setText(f"Session: {base} ({n} runs)")
         else:
             self.status_label.setText(f"Loaded: {Path(filepaths[0]).name}")
+
+        self._start_loading()
+
+    def _start_loading(self):
+        self.start_btn.setEnabled(False)
+        self.load_progress_bar.setValue(0)
+        self.load_progress_bar.setVisible(True)
+        self.load_label.setText("Loading...")
+        self.load_label.setVisible(True)
+
+        self._load_worker = LoadWorker(self._filepaths)
+        self._load_worker.load_progress.connect(self._on_load_progress)
+        self._load_worker.finished.connect(self._on_load_finished)
+        self._load_worker.error.connect(self._on_load_error)
+        self._load_worker.start()
+
+    def _on_load_progress(self, current: int, total: int):
+        self.load_label.setText(f"Loading run {current}/{total}...")
+        self.load_progress_bar.setMaximum(total)
+        self.load_progress_bar.setValue(current)
+
+    def _on_load_finished(self, source):
+        self._source = source
+        self._load_worker = None
+        self.load_progress_bar.setVisible(False)
+        self.load_label.setVisible(False)
+        self.status_label.setText(
+            f"Ready — {source.n_channels} ch, "
+            f"{source.total_samples / source.sfreq:.1f}s"
+        )
         self.start_btn.setEnabled(True)
 
+    def _on_load_error(self, msg: str):
+        self._load_worker = None
+        self.load_progress_bar.setVisible(False)
+        self.load_label.setVisible(False)
+        self.log_area.append(f"ERROR: {msg}")
+        self.status_label.setText(f"Load error: {msg[:50]}")
+        QMessageBox.warning(self, "Load Error", msg)
+
     def _on_start(self):
-        if not self._filepaths:
+        if self._source is None:
             return
         if self._worker is not None:
             return
@@ -167,14 +220,13 @@ class StreamTab(QWidget):
         self.pause_btn.setEnabled(True)
         self.stop_btn.setEnabled(True)
 
-        self._worker = StreamWorker(self._filepaths, chunk_duration=0.1)
+        self._worker = StreamWorker(self._source)
         self._worker.set_speed(self.speed_input.value())
         self._worker.set_filter(self.l_freq.value(), self.h_freq.value())
         self._worker.set_loop(self.loop_cb.isChecked())
-        self._worker.source.open()
 
-        n_ch = self._worker.source.n_channels
-        sfreq = self._worker.source.sfreq
+        n_ch = self._source.n_channels
+        sfreq = self._source.sfreq
         ch_names = [f'Ch {i}' for i in range(n_ch)]
         self.waveform_widget._init_buffer(n_ch, sfreq, ch_names)
 
@@ -196,16 +248,18 @@ class StreamTab(QWidget):
         if self._worker is not None:
             self._worker.stop()
             self._worker = None
-            self.pause_btn.setEnabled(False)
-            self.stop_btn.setEnabled(False)
-            self.start_btn.setEnabled(True)
-            self.start_btn.setText("▶ Start")
-            self.status_label.setText("Stopped")
-            self.progress.setValue(0)
-            self.waveform_widget.clear()
+        self._source = None
+        self.pause_btn.setEnabled(False)
+        self.stop_btn.setEnabled(False)
+        self.start_btn.setEnabled(True)
+        self.start_btn.setText("Load EEG File")
+        self.status_label.setText("Stopped")
+        self.progress.setValue(0)
+        self.waveform_widget.clear()
 
     def _on_chunk(self, chunk):
         self.waveform_widget.update_stream(chunk)
+        self.spectrum_widget.update_psd(chunk, self._source.sfreq)
 
     def _on_stream_finished(self):
         self.status_label.setText("Playback complete")

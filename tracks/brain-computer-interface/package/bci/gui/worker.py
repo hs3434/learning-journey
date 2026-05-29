@@ -12,14 +12,40 @@ from scipy.signal import welch
 from PyQt6.QtCore import QThread, QObject, pyqtSignal, QTimer
 
 from bci.config import PipelineConfig
-from bci.source import StreamSource, SessionSource, find_session_runs
+from bci.source import SessionSource
+
+
+class LoadWorker(QThread):
+    """Background data loading worker.
+
+    Loads and merges EEG runs via SessionSource in a background thread,
+    emitting progress updates so the GUI can show a loading bar.
+    Once complete, emits the pre-loaded SessionSource for reuse.
+    """
+    load_progress = pyqtSignal(int, int)
+    finished = pyqtSignal(object)
+    error = pyqtSignal(str)
+
+    def __init__(self, filepaths: List[str]):
+        super().__init__()
+        self.filepaths = list(filepaths)
+
+    def run(self):
+        try:
+            source = SessionSource(self.filepaths)
+            source.open(
+                progress_callback=lambda cur, total: self.load_progress.emit(cur, total)
+            )
+            self.finished.emit(source)
+        except Exception as e:
+            self.error.emit(str(e))
 
 
 class BatchWorker(QThread):
     """Background pipeline execution worker (offline batch mode).
 
-    Accepts one or more filepaths. When multiple paths are given,
-    they are concatenated via SessionSource before processing.
+    Accepts one or more filepaths. Data loading is done separately
+    via LoadWorker before this worker starts.
     """
     progress = pyqtSignal(int)
     log = pyqtSignal(str)
@@ -34,19 +60,12 @@ class BatchWorker(QThread):
     def run(self):
         try:
             from bci.pipeline import BCIPipeline
-            self.progress.emit(10)
+            self.progress.emit(0)
 
-            if len(self.filepaths) > 1:
-                from bci.source import SessionSource
-                self.log.emit(f"Loading session: {len(self.filepaths)} runs")
-                source = SessionSource(Path(self.filepaths[0]))
-                source.open()
-            else:
-                self.log.emit(f"Loading: {self.filepaths[0]}")
-
+            self.log.emit(f"Loading: {self.filepaths[0]}")
             pipeline = BCIPipeline(self.config)
             pipeline.load(Path(self.filepaths[0]))
-            self.progress.emit(30)
+            self.progress.emit(20)
             self.log.emit("Preprocessing...")
 
             pipeline.preprocess()
@@ -85,19 +104,11 @@ class StreamWorker(QObject):
     def __init__(self, filepath_or_list,  # str | Path | List[str] | SessionSource
                  chunk_duration: float = 0.1):
         super().__init__()
-        from bci.source import SessionSource
 
         if isinstance(filepath_or_list, SessionSource):
             self.source = filepath_or_list
-        elif isinstance(filepath_or_list, (list, tuple)):
-            run_paths = [Path(p) for p in filepath_or_list]
-            self.source = SessionSource(run_paths[0])
         else:
-            run_paths = find_session_runs(filepath_or_list)
-            if len(run_paths) > 1:
-                self.source = SessionSource(run_paths[0])
-            else:
-                self.source = StreamSource(filepath_or_list, chunk_duration)
+            self.source = SessionSource(filepath_or_list, chunk_duration)
 
         self._timer: Optional[QTimer] = None
         self._filter_enabled = True
@@ -110,7 +121,8 @@ class StreamWorker(QObject):
 
     def start(self):
         """Start streaming data from file."""
-        self.source.open()
+        if self.source.n_channels == 0:
+            self.source.open()
         self._chunk_samples = int(self.source.sfreq * self.source.chunk_duration)
         self._online_proc = __import__('bci.processor.online',
                                        fromlist=['OnlineProcessor']).OnlineProcessor(

@@ -6,7 +6,6 @@ import pytest
 import numpy as np
 import os
 import tempfile
-from pathlib import Path
 
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 
@@ -52,7 +51,6 @@ class TestBatchWorker:
 
     def test_signals_exist(self, qapp, fake_edf, default_config):
         from bci.gui.worker import BatchWorker
-        from PyQt6.QtCore import pyqtSignal
         worker = BatchWorker([fake_edf], default_config)
         assert hasattr(worker, 'progress')
         assert hasattr(worker, 'log')
@@ -77,7 +75,7 @@ class TestBatchWorker:
 
         assert len(logs) > 0, "Should emit log messages"
         assert len(progresses) > 0, "Should emit progress"
-        assert progresses[0] == 10  # first progress emission
+        assert progresses[0] == 0  # first progress emission
         # Fake data has no events, so pipeline may fail at epoch step
         # Both finished and error signals should not both be emitted
         assert len(results) + len(errors) > 0, "Should emit finished or error"
@@ -85,6 +83,54 @@ class TestBatchWorker:
     def test_run_with_invalid_file_emits_error(self, qapp, default_config):
         from bci.gui.worker import BatchWorker
         worker = BatchWorker(["/nonexistent/file.edf"], default_config)
+        errors = []
+        worker.error.connect(errors.append)
+        worker.run()
+        assert len(errors) > 0
+
+
+class TestLoadWorker:
+    """LoadWorker: background SessionSource loading with progress"""
+
+    def test_construction(self, qapp, fake_edf):
+        from bci.gui.worker import LoadWorker
+        worker = LoadWorker([fake_edf])
+        assert worker is not None
+        assert worker.filepaths == [fake_edf]
+
+    def test_signals_exist(self, qapp, fake_edf):
+        from bci.gui.worker import LoadWorker
+        worker = LoadWorker([fake_edf])
+        assert hasattr(worker, 'load_progress')
+        assert hasattr(worker, 'finished')
+        assert hasattr(worker, 'error')
+
+    def test_run_emits_finished_with_source(self, qapp, fake_edf):
+        from bci.gui.worker import LoadWorker
+        from bci.source import SessionSource
+
+        worker = LoadWorker([fake_edf])
+        results = []
+        progresses = []
+        errors = []
+
+        worker.finished.connect(results.append)
+        worker.load_progress.connect(lambda c, t: progresses.append((c, t)))
+        worker.error.connect(errors.append)
+
+        worker.run()
+
+        assert len(errors) == 0, f"Load error: {errors}"
+        assert len(results) == 1, "Should emit finished with source"
+        assert isinstance(results[0], SessionSource)
+        assert len(progresses) > 0, "Should emit load progress"
+        source = results[0]
+        assert source.n_channels > 0
+        assert source.total_samples > 0
+
+    def test_run_with_invalid_file_emits_error(self, qapp):
+        from bci.gui.worker import LoadWorker
+        worker = LoadWorker(["/nonexistent/file.edf"])
         errors = []
         worker.error.connect(errors.append)
         worker.run()

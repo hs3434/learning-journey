@@ -20,7 +20,7 @@ class SpectrumWidget(FigureCanvasQTAgg):
         super().__init__(self.fig)
         self.setParent(parent)
 
-    def update(self, data: np.ndarray, sfreq: float):
+    def update_psd(self, data: np.ndarray, sfreq: float):
         """Update PSD from chunk or full signal."""
         self.ax.clear()
         for ch in range(min(data.shape[0], 8)):

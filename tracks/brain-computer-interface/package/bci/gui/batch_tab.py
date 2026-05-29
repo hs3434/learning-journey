@@ -12,11 +12,11 @@ from PyQt6.QtWidgets import (
     QGroupBox, QDoubleSpinBox, QComboBox, QSpinBox, QTextEdit,
     QProgressBar, QMessageBox,
 )
-from PyQt6.QtCore import Qt
 
-from bci.config import PipelineConfig, create_default_config
+from bci.config import create_default_config
 from bci.gui.widgets import EEGWaveformWidget, ResultPanel
-from bci.gui.worker import BatchWorker
+from bci.gui.worker import BatchWorker, LoadWorker
+from bci.source import SessionSource
 
 
 class BatchTab(QWidget):
@@ -25,8 +25,10 @@ class BatchTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._filepaths: List[str] = []
+        self._source: Optional[SessionSource] = None
         self._config = create_default_config()
         self._worker: Optional[BatchWorker] = None
+        self._load_worker: Optional[LoadWorker] = None
         self._setup_ui()
 
     def _setup_ui(self):
@@ -103,11 +105,27 @@ class BatchTab(QWidget):
         )
         bottom.addWidget(self.log_area, stretch=3)
 
+        progress_col = QVBoxLayout()
+        self.load_label = QLabel("")
+        self.load_label.setStyleSheet("color: #aaa; font-size: 11px;")
+        self.load_label.setVisible(False)
+        progress_col.addWidget(self.load_label)
+
+        self.load_progress_bar = QProgressBar()
+        self.load_progress_bar.setVisible(False)
+        self.load_progress_bar.setMaximumHeight(16)
+        progress_col.addWidget(self.load_progress_bar)
+
         self.progress = QProgressBar()
-        bottom.addWidget(self.progress, stretch=1)
+        progress_col.addWidget(self.progress)
+        bottom.addLayout(progress_col, stretch=1)
         layout.addLayout(bottom)
 
     def _on_load(self):
+        if self._worker is not None and self._worker.isRunning():
+            self._worker.quit()
+            self._worker.wait()
+            self._worker = None
         from bci.gui.session_loader import open_session_files
         filepaths = open_session_files(self)
         if filepaths:
@@ -126,7 +144,39 @@ class BatchTab(QWidget):
             )
         else:
             self.status_label.setText(f"Loaded: {Path(filepaths[0]).name}")
+
+        self._start_loading()
+
+    def _start_loading(self):
+        self.run_btn.setEnabled(False)
+        self.load_progress_bar.setValue(0)
+        self.load_progress_bar.setVisible(True)
+        self.load_label.setText("Loading...")
+        self.load_label.setVisible(True)
+
+        self._load_worker = LoadWorker(self._filepaths)
+        self._load_worker.load_progress.connect(self._on_load_progress)
+        self._load_worker.finished.connect(self._on_load_finished)
+        self._load_worker.error.connect(self._on_load_error)
+        self._load_worker.start()
+
+    def _on_load_finished(self, source):
+        self._source = source
+        self._load_worker = None
+        self.load_progress_bar.setVisible(False)
+        self.load_label.setVisible(False)
+        self.status_label.setText(
+            f"Ready — {source.n_channels} ch, "
+            f"{source.total_samples / source.sfreq:.1f}s"
+        )
         self.run_btn.setEnabled(True)
+
+    def _on_load_error(self, msg: str):
+        self._load_worker = None
+        self.load_progress_bar.setVisible(False)
+        self.load_label.setVisible(False)
+        self.status_label.setText(f"Load error: {msg[:50]}")
+        QMessageBox.warning(self, "Load Error", msg)
 
     def _on_run(self):
         if not self._filepaths:
@@ -167,6 +217,11 @@ class BatchTab(QWidget):
         self.status_label.setText(f"Error: {msg[:50]}")
         self.run_btn.setEnabled(True)
         QMessageBox.warning(self, "Pipeline Error", msg)
+
+    def _on_load_progress(self, current: int, total: int):
+        self.load_label.setText(f"Loading run {current}/{total}...")
+        self.load_progress_bar.setMaximum(total)
+        self.load_progress_bar.setValue(current)
 
     def _on_save(self):
         if self._worker is None or not self._filepaths:

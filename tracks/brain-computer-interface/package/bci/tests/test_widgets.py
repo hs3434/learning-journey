@@ -78,14 +78,14 @@ class TestSpectrumWidget:
         from bci.gui.widgets.spectrum import SpectrumWidget
         data, sfreq, _ = _gen_eeg(n_channels=4, n_samples=1024)
         widget = SpectrumWidget()
-        widget.update(data, sfreq)
+        widget.update_psd(data, sfreq)
 
     def test_update_with_multiple_calls(self, qapp):
         from bci.gui.widgets.spectrum import SpectrumWidget
         widget = SpectrumWidget()
         for _ in range(5):
             data = np.random.randn(4, 256)
-            widget.update(data, sfreq=256.0)
+            widget.update_psd(data, sfreq=256.0)
 
 
 class TestTopomapWidget:
@@ -101,7 +101,7 @@ class TestTopomapWidget:
         widget = TopomapWidget()
         data = np.random.randn(8)
         ch_names = [f'EEG {i:03d}' for i in range(8)]
-        widget.update(data, ch_names)
+        widget.update_topo(data, ch_names)
 
     def test_update_without_positions_graceful(self, qapp):
         from bci.gui.widgets.topomap import TopomapWidget
