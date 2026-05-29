@@ -10,7 +10,7 @@ from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
     QGroupBox, QDoubleSpinBox, QSlider, QCheckBox, QTextEdit,
-    QProgressBar, QMessageBox,
+    QProgressBar, QMessageBox, QFileDialog,
 )
 from PyQt6.QtCore import Qt
 
@@ -34,6 +34,7 @@ class StreamTab(QWidget):
         self._source: Optional[SessionSource] = None
         self._worker: Optional[StreamWorker] = None
         self._load_worker: Optional[LoadWorker] = None
+        self._model_path: Optional[str] = None
         self._setup_ui()
 
     def _setup_ui(self):
@@ -77,6 +78,14 @@ class StreamTab(QWidget):
         self.speed_input.setSuffix("x")
         self.speed_input.valueChanged.connect(self._on_speed_input_changed)
         toolbar.addWidget(self.speed_input)
+
+        self.model_btn = QPushButton("Load Model")
+        self.model_btn.clicked.connect(self._on_load_model)
+        toolbar.addWidget(self.model_btn)
+
+        self.model_status = QLabel("No model")
+        self.model_status.setStyleSheet("color: #666; font-size: 11px;")
+        toolbar.addWidget(self.model_status)
 
         self.loop_cb = QCheckBox("Loop")
         self.loop_cb.setChecked(False)
@@ -157,6 +166,9 @@ class StreamTab(QWidget):
             self._worker.stop()
             self._worker = None
         self._source = None
+        self._model_path = None
+        self.model_status.setText("No model")
+        self.model_status.setStyleSheet("color: #666; font-size: 11px;")
         from bci.gui.session_loader import open_session_files
         filepaths = open_session_files(self)
         if filepaths:
@@ -252,6 +264,14 @@ class StreamTab(QWidget):
         self._worker.finished.connect(self._on_stream_finished)
         self._worker.error.connect(self._on_error)
         self._worker.progress.connect(self.progress.setValue)
+        self._worker.prediction.connect(self._on_prediction)
+
+        if self._model_path:
+            try:
+                self._worker.load_model(self._model_path)
+            except Exception as e:
+                self.log_area.append(f"Model load error: {e}")
+
         self._worker.start()
 
     def _on_pause(self):
@@ -309,3 +329,16 @@ class StreamTab(QWidget):
         self.speed_slider.blockSignals(False)
         if self._worker is not None:
             self._worker.set_speed(value)
+
+    def _on_load_model(self):
+        filepath, _ = QFileDialog.getOpenFileName(
+            self, "Load Model", "", "Pickle files (*.pkl);;All files (*)"
+        )
+        if not filepath:
+            return
+        self._model_path = filepath
+        self.model_status.setText(f"Model: {Path(filepath).stem}")
+        self.model_status.setStyleSheet("color: #00cc66; font-size: 11px;")
+
+    def _on_prediction(self, label: str, confidence: float):
+        self.result_panel.update_stream(f"{label} ({confidence:.0%})")

@@ -41,6 +41,7 @@ class PipelineResult:
     success: bool
     accuracy: Optional[float] = None
     std: Optional[float] = None
+    cv_scores: List[float] = field(default_factory=list)
     steps_completed: List[str] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)
     output_files: List[Path] = field(default_factory=list)
@@ -174,13 +175,21 @@ class BCIPipeline:
                 )
 
             sfreq = self.epochs.info['sfreq']
+            decoder_kwargs: dict = {}
+            if self.config.decode.method in ('ssvep', 'fbcca'):
+                decoder_kwargs['target_freqs'] = sorted(set(labels))
+                decoder_kwargs['fs'] = sfreq
             result = decode_fn(data, labels, method=self.config.decode.method,
-                               cv_folds=cv_folds, fs=sfreq)
+                               cv_folds=cv_folds, **decoder_kwargs)
+
+            model_path = Path(self.config.output_dir) / 'model.pkl'
+            self._save_model(data, labels, model_path)
 
             self.result = PipelineResult(
                 success=True,
                 accuracy=result.accuracy,
                 std=result.std,
+                cv_scores=result.cv_scores,
                 steps_completed=self._steps.copy()
             )
             self._steps.append('decode')
@@ -189,6 +198,22 @@ class BCIPipeline:
         except Exception as e:
             self.logger.error(f"Decode failed: {e}")
             raise
+
+    def _save_model(self, data: 'np.ndarray', labels: 'np.ndarray',
+                    model_path: Path):
+        """Train final decoder on all data and save."""
+        try:
+            from bci.decoder import create_decoder
+            kwargs: dict = {}
+            if self.config.decode.method in ('ssvep', 'fbcca'):
+                kwargs['fs'] = self.epochs.info.get('sfreq', 256)
+                kwargs['target_freqs'] = sorted(set(labels))
+            decoder = create_decoder(self.config.decode.method, **kwargs)
+            decoder.fit(data, labels)
+            decoder.save(model_path)
+            self.logger.info(f"Model saved to {model_path}")
+        except Exception as e:
+            self.logger.warning(f"Model save skipped: {e}")
 
     def run(self, filepath: Path | str,
             events: Optional['np.ndarray'] = None,

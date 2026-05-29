@@ -120,7 +120,9 @@ class TestResultPanel:
     def test_update_batch_result(self, qapp):
         from bci.gui.widgets.result_panel import ResultPanel
         widget = ResultPanel()
-        widget.update_batch(accuracy=0.85, confusion=np.eye(3), method='LDA')
+        widget.update_batch(accuracy=0.85, std=0.05,
+                           cv_scores=[0.82, 0.88, 0.85, 0.84, 0.86],
+                           method='LDA')
 
     def test_update_stream_prediction(self, qapp):
         from bci.gui.widgets.result_panel import ResultPanel
@@ -130,5 +132,6 @@ class TestResultPanel:
     def test_clear(self, qapp):
         from bci.gui.widgets.result_panel import ResultPanel
         widget = ResultPanel()
-        widget.update_batch(accuracy=0.75, confusion=np.eye(2), method='LDA')
+        widget.update_batch(accuracy=0.75, std=0.03,
+                           cv_scores=[0.70, 0.80], method='LDA')
         widget.clear()

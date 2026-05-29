@@ -41,7 +41,7 @@ class EpochConfig:
     tmax: float = 0.5
     baseline: Tuple[Optional[float], Optional[float]] = (None, 0)
     reject_threshold: Dict[str, float] = field(default_factory=lambda: {
-        'eeg': 150e-6
+        'eeg': 300e-6
     })
 
     def validate(self) -> bool:
@@ -57,7 +57,7 @@ class DecodeConfig:
     cv_folds: int = 5
 
     def validate(self) -> bool:
-        valid_methods = ['lda', 'mi', 'ssvep']
+        valid_methods = ['lda', 'ssvep', 'fbcca', 'cnn']
         if self.method not in valid_methods:
             raise ValueError(f"method must be one of {valid_methods}, got {self.method}")
         if self.cv_folds < 2:

@@ -44,12 +44,13 @@ class LoadWorker(QThread):
 class BatchWorker(QThread):
     """Background pipeline execution worker (offline batch mode).
 
-    Accepts one or more filepaths. Data loading is done separately
-    via LoadWorker before this worker starts.
+    Emits progress: 0=start, 20=load done, 50=preproc done,
+    70=epoch done, 100=decode done.
+    finished emits (PipelineResult, BCIPipeline).
     """
     progress = pyqtSignal(int)
     log = pyqtSignal(str)
-    finished = pyqtSignal(object)
+    finished = pyqtSignal(object, object)
     error = pyqtSignal(str)
 
     def __init__(self, filepaths: List[str], config: PipelineConfig):
@@ -66,21 +67,20 @@ class BatchWorker(QThread):
             pipeline = BCIPipeline(self.config)
             pipeline.load(Path(self.filepaths[0]))
             self.progress.emit(20)
-            self.log.emit("Preprocessing...")
 
             pipeline.preprocess()
             self.progress.emit(50)
-            self.log.emit("Creating epochs...")
+            self.log.emit("Preprocessing done")
 
             pipeline.create_epochs()
             self.progress.emit(70)
-            self.log.emit("Decoding...")
+            self.log.emit(f"Created {len(pipeline.epochs)} epochs")
 
             pipeline.decode()
             self.progress.emit(100)
             self.log.emit("Pipeline complete")
 
-            self.finished.emit(pipeline.result)
+            self.finished.emit(pipeline.result, pipeline)
         except Exception as e:
             self.error.emit(str(e))
 
@@ -97,6 +97,7 @@ class StreamWorker(QObject):
 
     chunk_processed = pyqtSignal(np.ndarray)
     spectrum_updated = pyqtSignal(np.ndarray, np.ndarray)
+    prediction = pyqtSignal(str, float)
     error = pyqtSignal(str)
     finished = pyqtSignal()
     progress = pyqtSignal(int)
@@ -109,6 +110,9 @@ class StreamWorker(QObject):
             self.source = filepath_or_list
         else:
             self.source = SessionSource(filepath_or_list, chunk_duration)
+
+        self._model = None
+        self._label_names: List[str] = []
 
         self._timer: Optional[QTimer] = None
         self._filter_enabled = True
@@ -162,6 +166,19 @@ class StreamWorker(QObject):
 
         self.chunk_processed.emit(chunk)
 
+        if self._model is not None:
+            try:
+                X = chunk[None, :, :]
+                proba = self._model.predict_proba(X)[0]
+                pred_idx = int(np.argmax(proba))
+                label = (self._label_names[pred_idx]
+                         if pred_idx < len(self._label_names)
+                         else str(pred_idx))
+                confidence = float(proba[pred_idx])
+                self.prediction.emit(label, confidence)
+            except Exception:
+                pass
+
         freqs, psd = welch(chunk[0], self.source.sfreq,
                            nperseg=min(128, chunk.shape[1]))
         self.spectrum_updated.emit(freqs, psd)
@@ -192,3 +209,14 @@ class StreamWorker(QObject):
 
     def set_loop(self, enabled: bool):
         self.source.set_loop(enabled)
+
+    def load_model(self, model_path: str | Path):
+        """Load a decoder from file for online prediction."""
+        from bci.decoder.base import Decoder
+        self._model = Decoder.load(model_path)
+        self._label_names = [str(c) for c in
+                             getattr(self._model, 'classes_', np.array([]))]
+
+    @property
+    def has_model(self) -> bool:
+        return self._model is not None
