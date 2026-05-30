@@ -26,21 +26,21 @@ class SSVEPDecoder(Decoder):
         self._generate_templates()
 
     def _generate_templates(self):
-        duration = 1.0
-        n_samples = int(duration * self.fs)
-        t = np.arange(n_samples) / self.fs
         for freq in self.target_freqs:
-            refs = []
-            for h in range(1, self.n_harmonics + 1):
-                refs.append(np.sin(2 * np.pi * h * freq * t))
-                refs.append(np.cos(2 * np.pi * h * freq * t))
-            self._templates[freq] = np.array(refs)
+            self._templates[freq] = freq
+
+    def _get_template(self, freq: float, n_samples: int) -> np.ndarray:
+        t = np.arange(n_samples) / self.fs
+        refs = []
+        for h in range(1, self.n_harmonics + 1):
+            refs.append(np.sin(2 * np.pi * h * freq * t))
+            refs.append(np.cos(2 * np.pi * h * freq * t))
+        return np.array(refs)
 
     def _cca_score(self, data: np.ndarray, freq: float) -> float:
-        """Single-band CCA correlation."""
         try:
             X = data
-            Y = self._templates[freq]
+            Y = self._get_template(freq, X.shape[1])
             C_xx = np.cov(X)
             C_yy = np.cov(Y)
             C_xx_inv = np.linalg.inv(C_xx)
