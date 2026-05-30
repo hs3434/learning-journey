@@ -58,8 +58,8 @@ class StepStrip(QFrame):
         layout.setContentsMargins(8, 2, 8, 2)
         layout.setSpacing(4)
 
-        self._step_names = ["Preprocess", "Epoch", "Decode"]
-        self._statuses = [StepStatus.PENDING] * 3
+        self._step_names = ["Main", "Preprocess", "Epoch", "Decode"]
+        self._statuses = [StepStatus.PENDING] * 4
         self._active_idx = 0
         self._labels: List[QLabel] = []
         self._arrows: List[QLabel] = []
@@ -114,20 +114,20 @@ class StepStrip(QFrame):
         self._labels[idx].setStyleSheet(self.STYLES[status])
 
     def set_all_pending(self):
-        for i in range(3):
+        for i in range(4):
             self.set_status(i, StepStatus.PENDING)
 
     def set_all_stale_from(self, idx: int):
-        for i in range(idx, 3):
+        for i in range(idx, 4):
             self.set_status(i, StepStatus.STALE)
 
     def mark_error(self, idx: int):
         self.set_status(idx, StepStatus.ERROR)
-        for i in range(idx + 1, 3):
+        for i in range(idx + 1, 4):
             self.set_status(i, StepStatus.PENDING)
 
     def current_step(self) -> int:
         for i, s in enumerate(self._statuses):
             if s in (StepStatus.RUNNING, StepStatus.PENDING):
                 return i
-        return 3
+        return 4

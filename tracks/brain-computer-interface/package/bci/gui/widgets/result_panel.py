@@ -34,12 +34,10 @@ class ResultPanel(QWidget):
         self._ax = fig.add_subplot(111)
         self._ax.set_facecolor('#1e1e1e')
         self._canvas = FigureCanvasQTAgg(fig)
-        self._canvas.setMaximumHeight(220)
-        layout.addWidget(self._canvas)
+        layout.addWidget(self._canvas, stretch=1)
 
         self._summary = QTextEdit()
         self._summary.setReadOnly(True)
-        self._summary.setMaximumHeight(60)
         self._summary.setStyleSheet(
             "background-color: #2d2d2d; color: #00ff88; font-family: monospace;"
         )

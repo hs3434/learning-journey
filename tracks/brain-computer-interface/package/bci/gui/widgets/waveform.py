@@ -138,6 +138,25 @@ class EEGWaveformWidget(FigureCanvasQTAgg):
             self._draw_col(col, data[a:b, :], sfreq, n_ch)
         self.draw_idle()
 
+    def plot_batch_window(self, data: np.ndarray, sfreq: float,
+                          ch_names: Optional[List[str]], t_start: float,
+                          window_sec: float = 5.0):
+        if ch_names is not None:
+            self._ch_names = ch_names
+        n_ch = data.shape[0]
+        start_sample = int(t_start * sfreq)
+        window_samples = int(window_sec * sfreq)
+        end_sample = min(start_sample + window_samples, data.shape[1])
+        window_data = data[:, start_sample:end_sample]
+
+        self._rebuild_axes(n_ch)
+        self.fig.subplots_adjust(bottom=0.18)
+
+        for col in range(self._n_cols):
+            a, b = self._col_slice(col, n_ch)
+            self._draw_col(col, window_data[a:b, :], sfreq, n_ch)
+        self.draw_idle()
+
     def clear(self):
         self._clear_figure()
         self._buffer = None
