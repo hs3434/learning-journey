@@ -33,9 +33,13 @@
 **brain-computer-interface 路线**：
 - Python ≥ 3.11
 - [uv](https://docs.astral.sh/uv/) 包管理器
-- 虚拟环境：`tracks/brain-computer-interface/.venv/`
-- 依赖声明：`tracks/brain-computer-interface/pyproject.toml`
-- 国内镜像已配置（清华 tuna）
+- 虚拟环境：`tracks/brain-computer-interface/package/.venv/`
+- 依赖声明：`tracks/brain-computer-interface/package/pyproject.toml`
+- 国内镜像已配置（清华 tuna，`~/.config/uv/uv.toml`）
+- CNN 解码器需要 PyTorch（可选）：
+  ```bash
+  uv pip install torch --index-url https://download.pytorch.org/whl/cpu
+  ```
 
 **js-opencode 路线**：
 - Node.js 18+
@@ -49,10 +53,10 @@
 ls tracks/
 
 # BCI 路线
-cd tracks/brain-computer-interface
-uv venv && source .venv/bin/activate   # 创建/激活环境
-uv sync                                 # 安装依赖
-python projects/signal-processor/exercises/day7_preprocessing.py  # 运行练习
+cd tracks/brain-computer-interface/package
+uv sync                                 # 安装基础依赖
+uv pip install torch --index-url https://download.pytorch.org/whl/cpu  # CNN 可选
+uv run bci --gui                        # 启动 GUI
 
 # JS 路线
 cd tracks/js-opencode/projects/week-00-js-reinforcement
