@@ -69,6 +69,23 @@ export DISPLAY=localhost:10.0
 uv run bci
 ```
 
+## 测试
+
+```bash
+# 安装测试依赖
+uv sync --group dev
+
+# 运行所有测试
+uv run pytest
+
+# 运行指定模块测试
+uv run pytest bci/tests/test_decoder.py
+
+# 多进程加速（需先安装 pytest-xdist）
+uv add --group dev pytest-xdist
+uv run pytest -n auto
+```
+
 ## 开发
 
 ```bash

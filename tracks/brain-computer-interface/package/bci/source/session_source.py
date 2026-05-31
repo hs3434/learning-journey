@@ -83,18 +83,17 @@ class SessionSource:
         if self._closed or not self._data_list:
             return None
 
+        if self._position >= self._total_samples:
+            if self._loop:
+                self._position = 0
+            else:
+                return None
+
         result_ch = self._data_list[0].shape[0]
         result = np.zeros((result_ch, 0))
         remaining = n_samples
 
         while remaining > 0:
-            if not self._data_list:
-                if self._loop:
-                    self._position = 0
-                    # reload not needed, data already in memory
-                else:
-                    return result if result.shape[1] > 0 else None
-
             run_idx = 0
             offset = 0
             for i, data in enumerate(self._data_list):
@@ -105,8 +104,7 @@ class SessionSource:
             else:
                 if self._loop:
                     self._position = 0
-                    offset = 0
-                    run_idx = 0
+                    continue
                 else:
                     return result if result.shape[1] > 0 else None
 
@@ -122,7 +120,7 @@ class SessionSource:
                 if self._loop:
                     self._position = 0
                 else:
-                    self._data_list = []  # mark exhausted
+                    self._data_list = []
                     break
 
         return result
