@@ -14,11 +14,20 @@ class TopomapWidget(FigureCanvasQTAgg):
     """Scalp topography visualization."""
 
     def __init__(self, parent=None):
-        self.fig = Figure(figsize=(4, 4), facecolor='#1e1e1e')
+        self.fig = Figure(facecolor='#1e1e1e')
         self.ax = self.fig.add_subplot(111)
         self.ax.set_facecolor('#1e1e1e')
         super().__init__(self.fig)
         self.setParent(parent)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._update_figure_size()
+
+    def _update_figure_size(self):
+        dpi = self.devicePixelRatio() * 100
+        size = min(self.width(), self.height()) / dpi
+        self.fig.set_size_inches(size, size)
 
     def update_topo(self, data: np.ndarray, ch_names: List[str]):
         """Update topomap with channel data."""

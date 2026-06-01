@@ -30,10 +30,11 @@ class ResultPanel(QWidget):
         self._title.setStyleSheet("color: white; font-weight: bold;")
         layout.addWidget(self._title)
 
-        fig = Figure(figsize=(4, 2.5), facecolor='#1e1e1e')
+        fig = Figure(facecolor='#1e1e1e')
         self._ax = fig.add_subplot(111)
         self._ax.set_facecolor('#1e1e1e')
         self._canvas = FigureCanvasQTAgg(fig)
+        self._fig = fig
         layout.addWidget(self._canvas, stretch=1)
 
         self._summary = QTextEdit()
@@ -49,6 +50,17 @@ class ResultPanel(QWidget):
         layout.addWidget(self._prediction_label)
 
         self._show_empty()
+        self._update_figure_size()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._update_figure_size()
+
+    def _update_figure_size(self):
+        dpi = self.devicePixelRatio() * 100
+        w = self.width() / dpi
+        h = max(self.height() - 40, 20) / dpi
+        self._fig.set_size_inches(max(w, 1), max(h, 0.5))
 
     # ----------------------------------------------------------------
     # Public API

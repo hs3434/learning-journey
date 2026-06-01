@@ -14,11 +14,22 @@ class SpectrumWidget(FigureCanvasQTAgg):
     """Real-time power spectral density display."""
 
     def __init__(self, parent=None):
-        self.fig = Figure(figsize=(5, 3), facecolor='#1e1e1e')
+        self.fig = Figure(facecolor='#1e1e1e')
         self.ax = self.fig.add_subplot(111)
         self.ax.set_facecolor('#1e1e1e')
         super().__init__(self.fig)
         self.setParent(parent)
+        self._update_figure_size()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._update_figure_size()
+
+    def _update_figure_size(self):
+        dpi = self.devicePixelRatio() * 100
+        w = self.width() / dpi
+        h = self.height() / dpi
+        self.fig.set_size_inches(max(w, 1), max(h, 1))
 
     def update_psd(self, data: np.ndarray, sfreq: float):
         """Update PSD from chunk or full signal."""

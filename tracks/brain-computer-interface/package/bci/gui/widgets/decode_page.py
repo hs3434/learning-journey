@@ -37,7 +37,18 @@ class DecodePage(QFrame):
         layout.addWidget(grp)
 
         self._chart = self._make_chart()
+        self._canvas = self._chart
         layout.addWidget(self._chart, stretch=1)
+        self._update_figure_size()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._update_figure_size()
+
+    def _update_figure_size(self):
+        dpi = self.devicePixelRatio() * 100
+        w = self.width() / dpi
+        self._fig.set_size_inches(max(w * 0.5, 1), 1.5)
 
     @property
     def method(self) -> str:
@@ -50,7 +61,7 @@ class DecodePage(QFrame):
     def show_result(self, accuracy: float, std: float,
                     cv_scores: Optional[List[float]] = None,
                     method: str = ""):
-        ax = self._chart.figure.axes[0]
+        ax = self._fig.axes[0]
         ax.clear()
         ax.set_facecolor('#1e1e1e')
         for spine in ax.spines.values():
@@ -74,20 +85,20 @@ class DecodePage(QFrame):
                      color='white', fontsize=8)
         ax.set_ylabel("Accuracy", color='white', fontsize=7)
         ax.tick_params(colors='white', labelsize=6)
-        self._chart.figure.set_facecolor('#1e1e1e')
-        self._chart.draw_idle()
+        self._fig.set_facecolor('#1e1e1e')
+        self._canvas.draw_idle()
 
     def refresh_chart(self):
-        ax = self._chart.figure.axes[0]
+        ax = self._fig.axes[0]
         ax.clear()
         ax.set_facecolor('#1e1e1e')
         ax.text(0.5, 0.5, "Run pipeline\nto see results",
                 transform=ax.transAxes, ha='center', va='center', color='#555')
-        self._chart.draw_idle()
+        self._canvas.draw_idle()
 
     @staticmethod
     def _make_chart() -> FigureCanvasQTAgg:
-        fig = Figure(figsize=(4, 1.5), facecolor='#1e1e1e')
+        fig = Figure(facecolor='#1e1e1e')
         ax = fig.add_subplot(111)
         ax.set_facecolor('#1e1e1e')
         ax.tick_params(colors='white', labelsize=6)
@@ -95,3 +106,7 @@ class DecodePage(QFrame):
             spine.set_color('#444')
         canvas = FigureCanvasQTAgg(fig)
         return canvas
+
+    @property
+    def _fig(self):
+        return self._chart.figure

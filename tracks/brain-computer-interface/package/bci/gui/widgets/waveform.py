@@ -24,7 +24,7 @@ class EEGWaveformWidget(FigureCanvasQTAgg):
 
     def __init__(self, parent=None, ch_per_plot: int = 8):
         self._ch_per_plot = max(1, ch_per_plot)
-        self.fig = Figure(figsize=(10, 4), facecolor='#1e1e1e')
+        self.fig = Figure(facecolor='#1e1e1e')
         super().__init__(self.fig)
         self.setParent(parent)
         self._axes: list = []
@@ -48,9 +48,6 @@ class EEGWaveformWidget(FigureCanvasQTAgg):
         """Create 1×N subplot grid: one column per `ch_per_plot` channels."""
         self._clear_figure()
         self._n_cols = math.ceil(n_ch / self._ch_per_plot)
-        col_width = min(3.0, 8.0 / max(1, self._n_cols))
-        width = min(10.0, max(4.0, self._n_cols * col_width))
-        self.fig.set_size_inches(width, 4)
         self.fig.subplots_adjust(
             left=0.06, right=0.98, bottom=0.15, top=0.95,
             wspace=0.08, hspace=0,
@@ -60,6 +57,16 @@ class EEGWaveformWidget(FigureCanvasQTAgg):
             ax = self.fig.add_subplot(1, self._n_cols, col + 1)
             ax.set_facecolor('#1e1e1e')
             self._axes.append(ax)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._update_figure_size()
+
+    def _update_figure_size(self):
+        dpi = self.devicePixelRatio() * 100
+        w = self.width() / dpi
+        h = self.height() / dpi
+        self.fig.set_size_inches(w, h)
 
     # ----------------------------------------------------------------
     # Channel range helpers

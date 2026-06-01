@@ -46,7 +46,18 @@ class EpochPage(QFrame):
         layout.addWidget(grp)
 
         self._chart = self._make_chart()
+        self._canvas = self._chart
         layout.addWidget(self._chart, stretch=1)
+        self._update_figure_size()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._update_figure_size()
+
+    def _update_figure_size(self):
+        dpi = self.devicePixelRatio() * 100
+        w = self.width() / dpi
+        self._fig.set_size_inches(max(w * 0.5, 1), 1.2)
 
     @property
     def tmin(self) -> float:
@@ -61,7 +72,7 @@ class EpochPage(QFrame):
         return self._reject.value()
 
     def refresh_chart(self, pipeline: Optional[object] = None):
-        ax = self._chart.figure.axes[0]
+        ax = self._fig.axes[0]
         ax.clear()
         ax.set_facecolor('#1e1e1e')
         for spine in ax.spines.values():
@@ -89,11 +100,11 @@ class EpochPage(QFrame):
                 ax.tick_params(colors='white', labelsize=6)
         except Exception:
             pass
-        self._chart.draw_idle()
+        self._canvas.draw_idle()
 
     @staticmethod
     def _make_chart() -> FigureCanvasQTAgg:
-        fig = Figure(figsize=(4, 1.2), facecolor='#1e1e1e')
+        fig = Figure(facecolor='#1e1e1e')
         ax = fig.add_subplot(111)
         ax.set_facecolor('#1e1e1e')
         ax.tick_params(colors='white', labelsize=6)
@@ -101,3 +112,7 @@ class EpochPage(QFrame):
             spine.set_color('#444')
         canvas = FigureCanvasQTAgg(fig)
         return canvas
+
+    @property
+    def _fig(self):
+        return self._chart.figure
