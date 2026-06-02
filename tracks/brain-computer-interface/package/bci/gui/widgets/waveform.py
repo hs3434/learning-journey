@@ -63,7 +63,7 @@ class EEGWaveformWidget(FigureCanvasQTAgg):
         self._update_figure_size()
 
     def _update_figure_size(self):
-        dpi = self.devicePixelRatio() * 100
+        dpi = 100
         w = self.width() / dpi
         h = self.height() / dpi
         self.fig.set_size_inches(w, h)
