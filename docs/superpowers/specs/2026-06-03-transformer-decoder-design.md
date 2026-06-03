@@ -77,6 +77,60 @@ Transformer Blocks 输出: (B, 51, 64)
    形状: (B, 64) → (B, n_classes)
 ```
 
+### Transformer Block 内部结构
+
+每个 Block 是 **Pre-LN** 架构（先 LN 再计算，比 Post-LN 训练更稳定）：
+
+```
+输入: (B, 51, 64)
+   ↓
+[1] LayerNorm: (B, 51, 64)        ← Pre-LN（在 MHA 之前）
+   ↓
+[2] 多头自注意力（手写 nn.Module）
+   ├─ Q = Linear(64, 64)(x)        # (B, 51, 64)
+   ├─ K = Linear(64, 64)(x)        # (B, 51, 64)
+   ├─ V = Linear(64, 64)(x)        # (B, 51, 64)
+   ├─ Split into 4 heads: (B, 4, 51, 16)
+   ├─ Attention = softmax(QK^T / sqrt(16))   # (B, 4, 51, 51)
+   ├─ Concat heads: (B, 51, 64)
+   └─ Output projection: Linear(64, 64)       # (B, 51, 64)
+   ↓
+[3] 残差连接（Residual）: x + attn_out
+   形状: (B, 51, 64)
+   ↓
+[4] LayerNorm: (B, 51, 64)        ← Pre-LN（在 FFN 之前）
+   ↓
+[5] FFN（前馈网络）
+   ├─ Linear(64, 256)              # (B, 51, 256)  # 4×d_model
+   ├─ GELU / ReLU
+   ├─ Dropout
+   └─ Linear(256, 64)              # (B, 51, 64)
+   ↓
+[6] 残差连接: x + ffn_out
+   形状: (B, 51, 64)
+   ↓
+Block 输出: (B, 51, 64)  ← 输入输出形状相同
+```
+
+**Pre-LN 与 Post-LN 对比**：
+
+```
+Pre-LN（采用）                Post-LN（不采用）
+                                 
+x → LN → MHA → +              x → MHA → + → LN
+    ↘___________↗                ↗___________↘
+                                 
+x → LN → FFN → +              x → FFN → + → LN
+    ↘___________↗                ↗___________↘
+```
+
+Pre-LN 的优势：残差路径上无 LayerNorm，梯度流畅，训练更稳定；适合深层 / 小样本场景。
+
+**Dropout 位置**：
+- MHA 输出后（`attn_dropout`）
+- FFN 输出后（`ffn_dropout`）
+- 默认 dropout=0.2
+
 ### 模块拆分
 
 ```
