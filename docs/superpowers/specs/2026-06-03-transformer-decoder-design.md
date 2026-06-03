@@ -42,19 +42,39 @@ Permute → (B, 50, 32)  ← 时间步作为序列
    ↓
 Linear Projection → d_model=64: (B, 50, 64)
    ↓
-+ CLS Token + 1D Positional Encoding: (B, 51, 64)
++ CLS Token + 1D Positional Encoding: (B, 51, 64)  ← Transformer 输入
    ↓
-[N × Transformer Blocks]
-  Pre-LN
-  Multi-Head Self-Attention (n_heads)
-  Residual
-  Pre-LN
-  FeedForward (d_model → 4*d_model → d_model)
-  Residual
+[N × Transformer Blocks]                              ← sequence-to-sequence
+   每个 block 保持形状不变：输入 (B, 51, 64) → 输出 (B, 51, 64)
    ↓
-LayerNorm(CLS): (B, d_model)
+Transformer Blocks 输出: (B, 51, 64)
    ↓
-Linear → n_classes: (B, n_classes)
+取出 CLS 位置 ([:, 0, :]): (B, 64)                   ← 步骤 1
+   ↓
+Final LayerNorm: (B, 64)                              ← 步骤 2
+   ↓
+Linear Classifier: (B, n_classes)                     ← 步骤 3
+```
+
+### Transformer 后处理（CLS 提取）详解
+
+Transformer 是 sequence-to-sequence 操作，输入输出形状相同。**分类需要从 51 个时间步中提取一个固定大小的向量**，标准做法是取 CLS token：
+
+```
+Transformer Blocks 输出: (B, 51, 64)
+   ↓
+[步骤 1] 切片取出 CLS（位置 0）
+   x_cls = x[:, 0, :]  # 丢弃 t1~t50，保留 CLS
+   形状: (B, 51, 64) → (B, 64)
+   ↓
+[步骤 2] Final LayerNorm
+   x_cls = nn.LayerNorm(64)(x_cls)
+   形状: (B, 64) → (B, 64)
+   作用: 稳定分类头输入分布
+   ↓
+[步骤 3] Linear 分类头
+   logits = nn.Linear(64, n_classes)(x_cls)
+   形状: (B, 64) → (B, n_classes)
 ```
 
 ### 模块拆分
