@@ -36,11 +36,10 @@
 输入: (B, n_channels, n_times) EEG epochs  = (B, 64, 1000)
    ↓
 [Token Embedding 层]
-  Conv1d(64, 64, kernel=5, stride=20, padding=2): (B, 64, 50)
+  Conv1d(64, 64, kernel=20, stride=20, padding=0): (B, 64, 50)
         作用: 把 1000 时间步降采样为 50 tokens
-        kernel=5: 每个 token 来自 5 个相邻时间点（局部平滑）
-        stride=20: token 间不重叠
-        参数量: 64×64×5 = 20,480
+        kernel=stride=20: 无信息丢失（每个输入时间步都被用上）
+        参数量: 64×64×20 = 81,920
    ↓
 Permute → (B, 50, 64)  ← 50 个 token、每 token 64 维
    ↓
@@ -61,38 +60,38 @@ Linear Projection → d_model=64: (B, 50, 64)  ← identity（维度已匹配）
 - 50 tokens → 50² = 2500 ops/层 → **400 倍加速**
 - 用单层 Conv1d 把 1000 步 → 50 tokens，**同时完成降采样 + 局部平滑**
 
-**为什么用 Conv1d(k=5, s=20) 而不是 mean pooling**：
-- Mean pooling 太粗暴，多个不同信号被平均掉
-- Conv1d 是可学习的，能保留更多判别信息
-- k=5 提供滑窗平滑，比硬边界（chunk+linear）好
-- 参数量 20,480（远小于 chunk+linear 的 81,920）
+**为什么用 kernel=stride=20**：
+- kernel=5, stride=20 会丢 75% 信息（每个 token 只用 5/20=25% 的时间步）
+- kernel=20, stride=20 保证**每个输入时间步都被用上**
+- 数学上等价于 chunk+linear：
+  ```
+  Conv1d(64, 64, kernel=20, stride=20) ≡ Chunk(20) + Linear(20*64 → 64)
+  ```
+- 输出长度验证：(1000 - 20) / 20 + 1 = 50 ✓
 
-**为什么用 Conv1d(k=5, s=20) 而不是 chunk+linear**：
-- 滑窗感受野比硬边界保留更多上下文
-- 参数少 4 倍
-- 标准做法（EEGNet、Conv-TasNet 等）
+**为什么不用更大的 kernel（如 k=40）**：
+- 每个 token 感受野更大 → 更平滑
+- 但参数量翻倍（163,840），BCI 小样本易过拟合
+- 50 tokens 够用，不需要额外平滑
+
+**为什么不用重叠（k=20, s=10）**：
+- 输出 99 tokens，序列长，计算量增加 4 倍
+- 50 tokens 对 BCI 任务够用
+- 保留简单性
 
 ### Token Embedding 与 Patch 切分的关系
 
-**Token Embedding = "patch 化"的实现方式之一**：
+**Token Embedding = "patch 化"的实现方式**：
 
-| 方式 | 实现 | 边界 | 参数量 |
-|------|------|------|--------|
-| Mean Pool | `F.avg_pool1d(20)` | 硬 | 0 |
-| Chunk + Linear | chunk + `Linear(1280, 64)` | 硬 | 81,920 |
-| **Conv1d(k=5, s=20)** ✅ | `Conv1d(64, 64, 5, 20)` | 滑窗 | **20,480** |
-| Conv1d(k=20, s=20) | `Conv1d(64, 64, 20, 20)` | 硬 | 81,920 |
+| 方式 | 实现 | 边界 | 参数量 | 信息覆盖 |
+|------|------|------|--------|----------|
+| Mean Pool | `F.avg_pool1d(20)` | 硬 | 0 | 100% |
+| Chunk + Linear | chunk + `Linear(1280, 64)` | 硬 | 81,920 | 100% |
+| **Conv1d(k=20, s=20)** ✅ | `Conv1d(64, 64, 20, 20)` | 硬 | **81,920** | **100%** |
+| Conv1d(k=5, s=20) ❌ | `Conv1d(64, 64, 5, 20)` | 硬 | 20,480 | 25% |
+| Conv1d(k=40, s=20) | `Conv1d(64, 64, 40, 20)` | 重叠 | 163,840 | 200% |
 
-**本质**：Conv1d 等价于一个滑窗版的 chunk+linear，但参数更少、边界更平滑。
-
-### 与其他方案的对比
-
-| 方案 | 序列长度 | 注意力 ops/层 | 局部特征提取 | 端到端学习 |
-|------|----------|---------------|--------------|------------|
-| 纯 1000 tokens | 1000 | 100 万 | ❌（靠 attention） | ✅ |
-| Mean 降采样 | 50 | 2500 | ❌（粗暴平均） | ✅ |
-| **Conv1d 降采样** ✅ | 50 | 2500 | ✅（小核平滑） | ✅ |
-| 多尺度 CNN | 50 | 2500 | ✅✅ | ⚠️（需手工） |
+**关键约束**：kernel ≥ stride 才能保证无信息丢失。
 
 ### Decoder Block 内部结构（Pre-LN + Causal MHA + RoPE）
 
