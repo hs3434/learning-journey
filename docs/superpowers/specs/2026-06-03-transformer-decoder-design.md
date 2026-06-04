@@ -36,14 +36,32 @@
 输入: (B, n_channels, n_times) EEG epochs  = (B, 64, 1000)
    ↓
 [Token Embedding 层]
-  Conv1d(64, 64, kernel=20, stride=20, padding=0): (B, 64, 50)
-        作用: 把 1000 时间步降采样为 50 tokens
-        kernel=stride=20: 无信息丢失（每个输入时间步都被用上）
+  Conv1d(64, 64, kernel=20, stride=10, padding=0): (B, 64, 99)
+        作用: 把 1000 时间步降采样为 99 tokens
+        kernel=20, stride=10: 50% 重叠（每 token 看 20 个相邻时间步）
+        输出长度: floor((1000 - 20) / 10) + 1 = 99
         参数量: 64×64×20 = 81,920
+   ↓
+Permute → (B, 99, 64)  ← 99 个 token、每 token 64 维
+   ↓
+Linear Projection → d_model=64: (B, 99, 64)  ← identity（维度已匹配）
+   ↓
+[N × Decoder Blocks（带 RoPE + Causal Mask）]
+   每个 block 保持形状：输入 (B, 99, 64) → 输出 (B, 99, 64)
+   ↓
+逐位置 Linear(64 → n_classes): (B, 99, n_classes)
+   ↓
+取最后位置 ([:, -1, :]): (B, n_classes)   ← GPT 风格：最后位置预测
+```
+输入: (B, n_channels, n_times) EEG epochs  = (B, 64, 1000)
+   ↓
+[Token Embedding 层]
+  Conv1d(64, 64, kernel=20, stride=10, padding=0): (B, 64, 50)
+        作用: 把 1000 时间步降采样为 50 tokens
    ↓
 Permute → (B, 50, 64)  ← 50 个 token、每 token 64 维
    ↓
-Linear Projection → d_model=64: (B, 50, 64)  ← identity（维度已匹配）
+Linear layer (B, 50, 64) → d_model=64: (B, 50, 64)
    ↓
 [N × Decoder Blocks（带 RoPE + Causal Mask）]
    每个 block 保持形状：输入 (B, 50, 64) → 输出 (B, 50, 64)
@@ -57,41 +75,45 @@ Linear Projection → d_model=64: (B, 50, 64)  ← identity（维度已匹配）
 
 **为什么需要 Token Embedding**：
 - 1000 时间步直接喂 attention → 1000² = 100 万 ops/层 → 计算浪费
-- 50 tokens → 50² = 2500 ops/层 → **400 倍加速**
-- 用单层 Conv1d 把 1000 步 → 50 tokens，**同时完成降采样 + 局部平滑**
+- 99 tokens → 99² ≈ 9800 ops/层 → **100 倍加速**
+- 用单层 Conv1d 把 1000 步 → 99 tokens，**同时完成降采样 + 局部平滑**
 
-**为什么用 kernel=stride=20**：
-- kernel=5, stride=20 会丢 75% 信息（每个 token 只用 5/20=25% 的时间步）
-- kernel=20, stride=20 保证**每个输入时间步都被用上**
-- 数学上等价于 chunk+linear：
-  ```
-  Conv1d(64, 64, kernel=20, stride=20) ≡ Chunk(20) + Linear(20*64 → 64)
-  ```
-- 输出长度验证：(1000 - 20) / 20 + 1 = 50 ✓
+**为什么用 kernel=20, stride=10**：
+- 50% 重叠：每个时间步被 2 个相邻 token 共用 → 提供滑动上下文
+- 99 tokens 足够细（每个 token = 10 时间步 ≈ 62.5ms @ 160Hz）
+- 参数量适中：64×64×20 = 81,920
+- 边界不补 0：实际 token 数 = floor((1000-20)/10)+1 = 99，**不强制凑整**
 
-**为什么不用更大的 kernel（如 k=40）**：
-- 每个 token 感受野更大 → 更平滑
-- 但参数量翻倍（163,840），BCI 小样本易过拟合
-- 50 tokens 够用，不需要额外平滑
+**为什么不无重叠（k=20, s=20）**：
+- 50 tokens 太粗（每个 token = 20 时间步 = 125ms）
+- 时间分辨率不够细，错过 SSVEP 相位、MI 动态等特征
+- 50% 重叠可让相邻 token 共享信息，避免边界割裂
 
-**为什么不用重叠（k=20, s=10）**：
-- 输出 99 tokens，序列长，计算量增加 4 倍
-- 50 tokens 对 BCI 任务够用
-- 保留简单性
+**为什么不更大 kernel**：
+- k=40, s=10：参数量翻倍（163,840），BCI 小样本易过拟合
+- 99 tokens 够用，不需要额外平滑
+
+**为什么不对齐到 100**：
+- padding=5 会让首末 token 含 0，引入边界伪迹
+- 模型对 99 vs 100 不敏感
+- 实际多少用多少，避免无意义的 padding
 
 ### Token Embedding 与 Patch 切分的关系
 
 **Token Embedding = "patch 化"的实现方式**：
 
-| 方式 | 实现 | 边界 | 参数量 | 信息覆盖 |
-|------|------|------|--------|----------|
-| Mean Pool | `F.avg_pool1d(20)` | 硬 | 0 | 100% |
-| Chunk + Linear | chunk + `Linear(1280, 64)` | 硬 | 81,920 | 100% |
-| **Conv1d(k=20, s=20)** ✅ | `Conv1d(64, 64, 20, 20)` | 硬 | **81,920** | **100%** |
-| Conv1d(k=5, s=20) ❌ | `Conv1d(64, 64, 5, 20)` | 硬 | 20,480 | 25% |
-| Conv1d(k=40, s=20) | `Conv1d(64, 64, 40, 20)` | 重叠 | 163,840 | 200% |
+| 方式 | 实现 | tokens | 重叠 | 参数量 | 信息覆盖 |
+|------|------|--------|------|--------|----------|
+| Mean Pool | `F.avg_pool1d(10)` | 100 | 无 | 0 | 100% |
+| **Conv1d(k=20, s=10)** ✅ | `Conv1d(64, 64, 20, 10)` | **99** | **50%** | **81,920** | **100%** |
+| Conv1d(k=20, s=20) | `Conv1d(64, 64, 20, 20)` | 50 | 无 | 81,920 | 100% |
+| Conv1d(k=10, s=10) | `Conv1d(64, 64, 10, 10)` | 100 | 无 | 40,960 | 100% |
+| Conv1d(k=5, s=20) ❌ | `Conv1d(64, 64, 5, 20)` | 50 | 无 | 20,480 | 25% |
 
-**关键约束**：kernel ≥ stride 才能保证无信息丢失。
+**关键约束**：
+- kernel ≥ stride：无信息丢失
+- kernel < stride：丢信息（k=5, s=20 丢 75%）
+- 50% 重叠（k=2s）：相邻 token 共享信息，最常用
 
 ### Decoder Block 内部结构（Pre-LN + Causal MHA + RoPE）
 
