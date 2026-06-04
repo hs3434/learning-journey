@@ -35,12 +35,12 @@
 输入: (B, n_channels, n_times) EEG epochs  = (B, 64, 1000)
    ↓
 [_CNNFrontend]
-  ├─ Conv1d (in=64, out=11, k=15, padding='same'): (B, 11, 1000)  ← 短时
-  ├─ Conv1d (in=64, out=11, k=25, padding='same'): (B, 11, 1000)  ← 中时
-  ├─ Conv1d (in=64, out=10, k=50, padding='same'): (B, 10, 1000)  ← 长时
-  ├─ Concat: (B, 32, 1000)
-  ├─ Conv1d (in=32, out=32, k=1) 通道混合: (B, 32, 1000)
-  └─ AvgPool1d(kernel=20, stride=20) 降采样: (B, 32, 50)
+  ├─ DepthwiseConv1d(64→64, k=15, groups=64): (B, 64, 1000)  ← 短时（beta）
+  ├─ DepthwiseConv1d(64→64, k=25, groups=64): (B, 64, 1000)  ← 中时（mu）
+  ├─ DepthwiseConv1d(64→64, k=50, groups=64): (B, 64, 1000)  ← 长时（P300）
+  ├─ Concat 沿通道: (B, 192, 1000)
+  ├─ Conv1d(192→32, k=1) 通道混合: (B, 32, 1000)
+  └─ AvgPool1d(kernel=20, stride=20) 时间降采样: (B, 32, 50)
    ↓
 Permute → (B, 50, 32)  ← 时间步作为序列
    ↓
@@ -52,6 +52,37 @@ Linear Projection → d_model=64: (B, 50, 64)
 逐位置 Linear(64 → n_classes): (B, 50, n_classes)
    ↓
 取最后位置 ([:, -1, :]): (B, n_classes)   ← GPT 风格：最后位置预测
+```
+
+### CNN 前端设计要点
+
+**关键约束**：保持 64 通道不变，让卷积核只在时间维度滑动。
+
+**DepthwiseConv1d 行为**：
+```
+对于每个 EEG 通道 c ∈ [0, 64)：
+  滑动窗口 (kernel=k) 在时间维度
+  输出 1 个新特征图
+  与其他通道独立
+```
+
+**为什么用 Depthwise**：
+- 标准 `Conv1d(64→11, k=15)` 会把 64 通道压缩到 11，**丢失空间信息**
+- Depthwise 让每个 EEG 通道**独立做时间卷积**，保留 64 通道结构
+- 后续 1×1 Conv (`Conv1d(192→32, k=1)`) 做**显式的通道特征压缩**
+- 这与 EEGNet 的 Depthwise + Separable 设计哲学一致
+
+**多尺度 + 通道混合流程**：
+```
+ShortConv (k=15):  (B, 64, 1000)   ← beta 频段（~50ms @ 250Hz）
+MidConv   (k=25):  (B, 64, 1000)   ← mu 频段（~100ms）
+LongConv  (k=50):  (B, 64, 1000)   ← P300 频段（~200ms）
+   ↓
+Concat 沿通道: (B, 192, 1000)   ← 64×3 个特征图
+   ↓
+1×1 Conv 通道混合: (B, 32, 1000)   ← 学 CSP-like 空间滤波
+   ↓
+AvgPool: (B, 32, 50)   ← 时间降采样
 ```
 
 ### Decoder Block 内部结构（Pre-LN + Causal MHA + RoPE）
@@ -181,7 +212,7 @@ _CausalMask                 因果 mask 生成（~10 行）
 _CausalMHA                  Causal Multi-Head Self-Attention + RoPE（~60 行）
 _FeedForward                FFN 两层 MLP（~10 行）
 _DecoderBlock               Pre-LN decoder block（~30 行）
-_CNNFrontend                多尺度时间卷积 + 通道混合 + 降采样（~50 行）
+_CNNFrontend                Depthwise 多尺度时间卷积 + 1×1 通道混合 + 降采样（~50 行）
 _EEGTransformer             Linear 投影 + Decoder 堆叠 + 分类头（~50 行）
 TransformerDecoder          Decoder ABC 包装（~80 行）
 ```
