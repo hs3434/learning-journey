@@ -17,73 +17,60 @@
 
 | 维度 | 决策 | 理由 |
 |------|------|------|
-| 架构 | 多尺度 CNN 前端 + GPT 风格 Transformer 解码器 | 解决 EEG 全局/局部信息矛盾 |
+| 架构 | **纯 Transformer**（无 CNN 前端）+ GPT 风格解码器 | 注意力是卷积超集，无需手工特征 |
+| 序列输入 | 64 通道作为 token 维度，时间步作为序列长度 | 1000 tokens 直接输入 attention |
 | 位置编码 | **RoPE**（旋转位置编码） | 在 MHA 内部编码，外推能力强 |
-| 注意力 | **单向因果**（causal mask） | 参考 GPT 架构，模拟时序因果性 |
-| 分类方式 | **无 CLS，逐位置分类头，取最后位置** | GPT 风格，最后位置汇聚全序列信息 |
+| 注意力 | **单向因果**（causal mask） | 参考 GPT 架构 |
+| 分类方式 | **无 CLS，逐位置分类头，取最后位置** | GPT 风格 |
 | 依赖 | 手写多头自注意力 + RoPE | 零新依赖 |
 | 注册方式 | `@register('transformer')` | 沿用现有 ABC 模式 |
 | 保存格式 | `torch.save/load` | 与 `CNNDecoder` 一致 |
 
-**参考架构**：GPT（decoder-only Transformer） + 时序分类微调。
+**核心哲学**：**纯端到端，让 attention 自己学习所有模式**，不引入任何手工归纳偏置（无 CNN、无 patch、无显式特征工程）。
 
 ## 架构
 
-### 数据流（GPT 风格）
+### 数据流（GPT 风格，无 CNN 前端）
 
 ```
 输入: (B, n_channels, n_times) EEG epochs  = (B, 64, 1000)
    ↓
-[_CNNFrontend]
-  ├─ DepthwiseConv1d(64→64, k=15, groups=64): (B, 64, 1000)  ← 短时（beta）
-  ├─ DepthwiseConv1d(64→64, k=25, groups=64): (B, 64, 1000)  ← 中时（mu）
-  ├─ DepthwiseConv1d(64→64, k=50, groups=64): (B, 64, 1000)  ← 长时（P300）
-  ├─ Concat 沿通道: (B, 192, 1000)
-  ├─ Conv1d(192→32, k=1) 通道混合: (B, 32, 1000)
-  └─ AvgPool1d(kernel=20, stride=20) 时间降采样: (B, 32, 50)
+Permute → (B, 1000, 64)  ← 时间步作为序列、64 通道作为 token 维度
    ↓
-Permute → (B, 50, 32)  ← 时间步作为序列
-   ↓
-Linear Projection → d_model=64: (B, 50, 64)
+Linear Projection → d_model=64: (B, 1000, 64)  ← identity（维度已匹配）
    ↓
 [N × Decoder Blocks（带 RoPE + Causal Mask）]
-   每个 block 保持形状：输入 (B, 50, 64) → 输出 (B, 50, 64)
+   每个 block 保持形状：输入 (B, 1000, 64) → 输出 (B, 1000, 64)
    ↓
-逐位置 Linear(64 → n_classes): (B, 50, n_classes)
+逐位置 Linear(64 → n_classes): (B, 1000, n_classes)
    ↓
 取最后位置 ([:, -1, :]): (B, n_classes)   ← GPT 风格：最后位置预测
 ```
 
-### CNN 前端设计要点
+### 设计哲学
 
-**关键约束**：保持 64 通道不变，让卷积核只在时间维度滑动。
+**纯 Transformer，端到端学习**：
+- **无 CNN 前端**：注意力机制是卷积的超集，让 attention 自己学所有模式
+- **无 patch 切分**：1000 tokens 直接输入，避免切分破坏局部结构
+- **无显式位置编码**（除 RoPE）：仅在 MHA 内部编码位置
+- **无手工特征工程**：模型从数据中端到端学习
 
-**DepthwiseConv1d 行为**：
-```
-对于每个 EEG 通道 c ∈ [0, 64)：
-  滑动窗口 (kernel=k) 在时间维度
-  输出 1 个新特征图
-  与其他通道独立
-```
+**为什么不需要 CNN**：
+- 卷积是"固定权重的局部注意力"——权重训练后不变
+- 注意力是"动态权重的全局机制"——权重由输入决定
+- 数学上 attention 是 conv 的超集，可学会任何 conv 能学到的特征
+- 1000 tokens 在注意力计算上完全可行（1000² = 100 万 ops / 层）
 
-**为什么用 Depthwise**：
-- 标准 `Conv1d(64→11, k=15)` 会把 64 通道压缩到 11，**丢失空间信息**
-- Depthwise 让每个 EEG 通道**独立做时间卷积**，保留 64 通道结构
-- 后续 1×1 Conv (`Conv1d(192→32, k=1)`) 做**显式的通道特征压缩**
-- 这与 EEGNet 的 Depthwise + Separable 设计哲学一致
+### 与传统 EEG 深度学习的对比
 
-**多尺度 + 通道混合流程**：
-```
-ShortConv (k=15):  (B, 64, 1000)   ← beta 频段（~50ms @ 250Hz）
-MidConv   (k=25):  (B, 64, 1000)   ← mu 频段（~100ms）
-LongConv  (k=50):  (B, 64, 1000)   ← P300 频段（~200ms）
-   ↓
-Concat 沿通道: (B, 192, 1000)   ← 64×3 个特征图
-   ↓
-1×1 Conv 通道混合: (B, 32, 1000)   ← 学 CSP-like 空间滤波
-   ↓
-AvgPool: (B, 32, 50)   ← 时间降采样
-```
+| 维度 | EEGNet / EEG-Conformer | 本设计（纯 Transformer） |
+|------|------------------------|--------------------------|
+| 局部特征提取 | Depthwise Conv | 注意力自动学 |
+| 通道关系建模 | 1×1 Conv / 注意力 | 注意力 |
+| 频段特征 | 多尺度 conv | 注意力 |
+| 特征工程 | 强 | 弱 |
+| 归纳偏置 | 多 | 极少 |
+| 数据需求 | 中等 | 较大（但 BCI 也常 fine-tune） |
 
 ### Decoder Block 内部结构（Pre-LN + Causal MHA + RoPE）
 
@@ -205,14 +192,13 @@ CrossEntropyLoss(y, logits)
 ### 模块拆分
 
 ```
-bci/decoder/transformer.py  (~220 行)
+bci/decoder/transformer.py  (~180 行)
 
 _RotaryPositionalEmbedding  RoPE 旋转编码（~30 行）
 _CausalMask                 因果 mask 生成（~10 行）
 _CausalMHA                  Causal Multi-Head Self-Attention + RoPE（~60 行）
 _FeedForward                FFN 两层 MLP（~10 行）
 _DecoderBlock               Pre-LN decoder block（~30 行）
-_CNNFrontend                Depthwise 多尺度时间卷积 + 1×1 通道混合 + 降采样（~50 行）
 _EEGTransformer             Linear 投影 + Decoder 堆叠 + 分类头（~50 行）
 TransformerDecoder          Decoder ABC 包装（~80 行）
 ```
@@ -317,7 +303,7 @@ self._method.addItems(['lda', 'ssvep', 'fbcca', 'cnn', 'transformer'])
 
 | 文件 | 行数 | 用途 |
 |------|------|------|
-| `bci/decoder/transformer.py` | ~220 | 核心实现（RoPE + Causal MHA + GPT 风格头） |
+| `bci/decoder/transformer.py` | ~180 | 核心实现（纯 Transformer + RoPE + Causal MHA） |
 | `bci/tests/test_transformer.py` | ~150 | 单元测试 |
 | `bci/tests/test_transformer_e2e.py` | ~80 | 集成测试 |
 
