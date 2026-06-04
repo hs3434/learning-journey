@@ -17,15 +17,19 @@
 
 | 维度 | 决策 | 理由 |
 |------|------|------|
-| 架构 | 多尺度 CNN 前端 + Transformer 编码器 | 解决 EEG 全局/局部信息矛盾 |
-| 输入表示 | 时间步作为 token | 避免 patch 切分破坏局部结构 |
-| 注意力 | 手写多头自注意力 | 零新依赖 |
+| 架构 | 多尺度 CNN 前端 + GPT 风格 Transformer 解码器 | 解决 EEG 全局/局部信息矛盾 |
+| 位置编码 | **RoPE**（旋转位置编码） | 在 MHA 内部编码，外推能力强 |
+| 注意力 | **单向因果**（causal mask） | 参考 GPT 架构，模拟时序因果性 |
+| 分类方式 | **无 CLS，逐位置分类头，取最后位置** | GPT 风格，最后位置汇聚全序列信息 |
+| 依赖 | 手写多头自注意力 + RoPE | 零新依赖 |
 | 注册方式 | `@register('transformer')` | 沿用现有 ABC 模式 |
 | 保存格式 | `torch.save/load` | 与 `CNNDecoder` 一致 |
 
+**参考架构**：GPT（decoder-only Transformer） + 时序分类微调。
+
 ## 架构
 
-### 数据流
+### 数据流（GPT 风格）
 
 ```
 输入: (B, n_channels, n_times) EEG epochs  = (B, 64, 1000)
@@ -42,105 +46,143 @@ Permute → (B, 50, 32)  ← 时间步作为序列
    ↓
 Linear Projection → d_model=64: (B, 50, 64)
    ↓
-+ CLS Token + 1D Positional Encoding: (B, 51, 64)  ← Transformer 输入
+[N × Decoder Blocks（带 RoPE + Causal Mask）]
+   每个 block 保持形状：输入 (B, 50, 64) → 输出 (B, 50, 64)
    ↓
-[N × Transformer Blocks]                              ← sequence-to-sequence
-   每个 block 保持形状不变：输入 (B, 51, 64) → 输出 (B, 51, 64)
+逐位置 Linear(64 → n_classes): (B, 50, n_classes)
    ↓
-Transformer Blocks 输出: (B, 51, 64)
-   ↓
-取出 CLS 位置 ([:, 0, :]): (B, 64)                   ← 步骤 1
-   ↓
-Final LayerNorm: (B, 64)                              ← 步骤 2
-   ↓
-Linear Classifier: (B, n_classes)                     ← 步骤 3
+取最后位置 ([:, -1, :]): (B, n_classes)   ← GPT 风格：最后位置预测
 ```
 
-### Transformer 后处理（CLS 提取）详解
-
-Transformer 是 sequence-to-sequence 操作，输入输出形状相同。**分类需要从 51 个时间步中提取一个固定大小的向量**，标准做法是取 CLS token：
+### Decoder Block 内部结构（Pre-LN + Causal MHA + RoPE）
 
 ```
-Transformer Blocks 输出: (B, 51, 64)
+输入: (B, 50, 64)
    ↓
-[步骤 1] 切片取出 CLS（位置 0）
-   x_cls = x[:, 0, :]  # 丢弃 t1~t50，保留 CLS
-   形状: (B, 51, 64) → (B, 64)
+[1] LayerNorm: (B, 50, 64)        ← Pre-LN
    ↓
-[步骤 2] Final LayerNorm
-   x_cls = nn.LayerNorm(64)(x_cls)
-   形状: (B, 64) → (B, 64)
-   作用: 稳定分类头输入分布
+[2] Causal Multi-Head Self-Attention with RoPE
+   ├─ Q = Linear(64, 64)(x)        # (B, 50, 64)
+   ├─ K = Linear(64, 64)(x)        # (B, 50, 64)
+   ├─ V = Linear(64, 64)(x)        # (B, 50, 64)
+   ├─ Split into 4 heads: (B, 4, 50, 16)
+   ├─ RoPE: rotate Q, K by position
+   │   Q' = RoPE(Q, pos)
+   │   K' = RoPE(K, pos)
+   ├─ Causal Mask: 上三角置 -inf
+   │   attention_mask[j, i] = -inf if i > j
+   ├─ Attention = softmax(Q'K'^T / sqrt(16) + mask)   # (B, 4, 50, 50)
+   ├─ Concat heads: (B, 50, 64)
+   └─ Output projection: Linear(64, 64)                # (B, 50, 64)
    ↓
-[步骤 3] Linear 分类头
-   logits = nn.Linear(64, n_classes)(x_cls)
-   形状: (B, 64) → (B, n_classes)
-```
-
-### Transformer Block 内部结构
-
-每个 Block 是 **Pre-LN** 架构（先 LN 再计算，比 Post-LN 训练更稳定）：
-
-```
-输入: (B, 51, 64)
+[3] 残差连接: x + attn_out
+   形状: (B, 50, 64)
    ↓
-[1] LayerNorm: (B, 51, 64)        ← Pre-LN（在 MHA 之前）
-   ↓
-[2] 多头自注意力（手写 nn.Module）
-   ├─ Q = Linear(64, 64)(x)        # (B, 51, 64)
-   ├─ K = Linear(64, 64)(x)        # (B, 51, 64)
-   ├─ V = Linear(64, 64)(x)        # (B, 51, 64)
-   ├─ Split into 4 heads: (B, 4, 51, 16)
-   ├─ Attention = softmax(QK^T / sqrt(16))   # (B, 4, 51, 51)
-   ├─ Concat heads: (B, 51, 64)
-   └─ Output projection: Linear(64, 64)       # (B, 51, 64)
-   ↓
-[3] 残差连接（Residual）: x + attn_out
-   形状: (B, 51, 64)
-   ↓
-[4] LayerNorm: (B, 51, 64)        ← Pre-LN（在 FFN 之前）
+[4] LayerNorm: (B, 50, 64)        ← Pre-LN
    ↓
 [5] FFN（前馈网络）
-   ├─ Linear(64, 256)              # (B, 51, 256)  # 4×d_model
-   ├─ GELU / ReLU
+   ├─ Linear(64, 256)              # (B, 50, 256)  # 4×d_model
+   ├─ GELU
    ├─ Dropout
-   └─ Linear(256, 64)              # (B, 51, 64)
+   └─ Linear(256, 64)              # (B, 50, 64)
    ↓
 [6] 残差连接: x + ffn_out
-   形状: (B, 51, 64)
+   形状: (B, 50, 64)
    ↓
-Block 输出: (B, 51, 64)  ← 输入输出形状相同
+Block 输出: (B, 50, 64)  ← 输入输出形状相同
 ```
 
-**Pre-LN 与 Post-LN 对比**：
+### Causal Mask 详解
 
 ```
-Pre-LN（采用）                Post-LN（不采用）
-                                 
-x → LN → MHA → +              x → MHA → + → LN
-    ↘___________↗                ↗___________↘
-                                 
-x → LN → FFN → +              x → FFN → + → LN
-    ↘___________↗                ↗___________↘
+位置:  0    1    2    3   ...   49
+       ↑    ↑    ↑    ↑         ↑
+mask =  0   -inf -inf -inf      -inf
+       ↓
+       0    0   -inf -inf      -inf
+       ↓    ↓
+       0    0    0   -inf      -inf
+       ↓    ↓    ↓
+       ...  0    0    0       -inf
+       ↓    ↓    ↓    ↓
+       0    0    0    0    ...   0
+       ↓    ↓    ↓    ↓         ↓
+attn[0,0] attn[0,1] attn[0,2] ...  # 位置 0 只能看自己
+attn[1,0] attn[1,1] attn[1,2] ...  # 位置 1 能看 0 和 1
+...                                  # 位置 49 能看全部
 ```
 
-Pre-LN 的优势：残差路径上无 LayerNorm，梯度流畅，训练更稳定；适合深层 / 小样本场景。
+**为什么因果 mask 在分类中也合理**：
+- EEG 时间序列有天然因果性：未来的信号不能影响过去
+- 强制模型用过去信息预测当前 / 未来
+- GPT 风格 = 因果语言模型 + 分类微调
 
-**Dropout 位置**：
-- MHA 输出后（`attn_dropout`）
-- FFN 输出后（`ffn_dropout`）
-- 默认 dropout=0.2
+### RoPE 旋转位置编码
+
+**传统 1D PE（不采用）**：
+```
+embedding[i] + PE[i]  # 加法
+```
+
+**RoPE（采用）**：
+```
+对 Q, K 向量按位置角度旋转
+Q'[i] = R(i) · Q[i]
+K'[i] = R(i) · K[i]
+其中 R(i) 是依赖于位置 i 的旋转矩阵
+```
+
+**RoPE 优势**：
+- 通过 Q·K 内的点积自然编码相对位置
+- 不增加参数量
+- 长度外推能力强（训练 50 步可测试更长的序列）
+- 现代 LLM 标配（LLaMA、Mistral、GPT-NeoX）
+
+**简化实现**（d=2 例子）：
+```
+位置 0: 角度 = 0,    R = [[1, 0], [0, 1]]     # 单位旋转
+位置 1: 角度 = θ,    R = [[cosθ, -sinθ], [sinθ, cosθ]]
+位置 2: 角度 = 2θ,   R = [[cos2θ, -sin2θ], [sin2θ, cos2θ]]
+...
+```
+
+**d_model=64 实现**：将 64 维分成 32 对，每对旋转不同角度：
+```
+θ_i = 1 / (10000^(2i/d))  for i in [0, 16)
+位置 m 的旋转角: m * θ_i
+```
+
+### 分类头（GPT 风格）
+
+```
+Transformer 输出: (B, 50, 64)
+   ↓
+逐位置 Linear(64 → n_classes)
+   每个位置独立映射：(B, 50, 64) → (B, 50, n_classes)
+   ↓
+取最后位置 [:, -1, :]
+   (B, 50, n_classes) → (B, n_classes)
+   ↓
+CrossEntropyLoss(y, logits)
+```
+
+**为什么取最后位置**：
+- 因果 mask 下，最后位置能看到全部 50 个时间步
+- 最后位置的输出汇聚了整段序列的因果信息
+- 与 GPT 自回归预测"下一个 token"的逻辑一致
 
 ### 模块拆分
 
 ```
-bci/decoder/transformer.py  (~200 行)
+bci/decoder/transformer.py  (~220 行)
 
-_MultiHeadSelfAttention     手写多头自注意力（~50 行）
+_RotaryPositionalEmbedding  RoPE 旋转编码（~30 行）
+_CausalMask                 因果 mask 生成（~10 行）
+_CausalMHA                  Causal Multi-Head Self-Attention + RoPE（~60 行）
 _FeedForward                FFN 两层 MLP（~10 行）
-_TransformerBlock           Pre-LN encoder block（~30 行）
+_DecoderBlock               Pre-LN decoder block（~30 行）
 _CNNFrontend                多尺度时间卷积 + 通道混合 + 降采样（~50 行）
-_EEGTransformer             Linear 投影 + Encoder 堆叠 + 分类头（~60 行）
+_EEGTransformer             Linear 投影 + Decoder 堆叠 + 分类头（~50 行）
 TransformerDecoder          Decoder ABC 包装（~80 行）
 ```
 
@@ -244,7 +286,7 @@ self._method.addItems(['lda', 'ssvep', 'fbcca', 'cnn', 'transformer'])
 
 | 文件 | 行数 | 用途 |
 |------|------|------|
-| `bci/decoder/transformer.py` | ~200 | 核心实现 |
+| `bci/decoder/transformer.py` | ~220 | 核心实现（RoPE + Causal MHA + GPT 风格头） |
 | `bci/tests/test_transformer.py` | ~150 | 单元测试 |
 | `bci/tests/test_transformer_e2e.py` | ~80 | 集成测试 |
 
@@ -259,10 +301,12 @@ self._method.addItems(['lda', 'ssvep', 'fbcca', 'cnn', 'transformer'])
 
 | 类型 | 内容 |
 |------|------|
-| **单元：MHA** | 多头拆分、注意力权重、缩放因子 |
-| **单元：TransformerBlock** | Pre-LN、Residual、维度保持 |
+| **单元：RoPE** | 不同位置的旋转角度、Q·K 相对位置编码正确性 |
+| **单元：Causal Mask** | 上三角 -inf 屏蔽、位置 i 只能看 ≤ i |
+| **单元：Causal MHA** | 形状一致性、causal mask 应用、RoPE 集成 |
+| **单元：DecoderBlock** | Pre-LN、Residual、维度保持 |
 | **单元：CNN 前端** | 多尺度输出拼接、降采样形状 |
-| **单元：EEGTransformer** | CLS token、Position encoding、输出维度 |
+| **单元：EEGTransformer** | 逐位置线性头、最后位置切片 |
 | **单元：边界** | 通道/时间维度不匹配 |
 | **集成：save/load** | 往返预测一致性 |
 | **集成：decode()** | 跑通 `decode(method='transformer')` 端到端流程 |
