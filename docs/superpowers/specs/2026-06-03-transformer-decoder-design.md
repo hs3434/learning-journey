@@ -17,8 +17,8 @@
 
 | 维度 | 决策 | 理由 |
 |------|------|------|
-| 架构 | **纯 Transformer**（无 CNN 前端）+ GPT 风格解码器 | 注意力是卷积超集，无需手工特征 |
-| 序列输入 | 64 通道作为 token 维度，时间步作为序列长度 | 1000 tokens 直接输入 attention |
+| 架构 | **轻量 Token Embedding（Conv1d）+ GPT 风格 Transformer** | attention 太长会浪费计算，需要 token 化 |
+| Token Embedding | `Conv1d(64, 64, k=5, stride=20)` | 滑窗平滑降采样，参数少 |
 | 位置编码 | **RoPE**（旋转位置编码） | 在 MHA 内部编码，外推能力强 |
 | 注意力 | **单向因果**（causal mask） | 参考 GPT 架构 |
 | 分类方式 | **无 CLS，逐位置分类头，取最后位置** | GPT 风格 |
@@ -26,51 +26,73 @@
 | 注册方式 | `@register('transformer')` | 沿用现有 ABC 模式 |
 | 保存格式 | `torch.save/load` | 与 `CNNDecoder` 一致 |
 
-**核心哲学**：**纯端到端，让 attention 自己学习所有模式**，不引入任何手工归纳偏置（无 CNN、无 patch、无显式特征工程）。
+**核心设计**：用单层 Conv1d 把 1000 时间步降采样为 50 tokens，作为 Transformer 输入序列。注意力专注于 token 间的时序关系，不重复做局部特征提取。
 
 ## 架构
 
-### 数据流（GPT 风格，无 CNN 前端）
+### 数据流（轻量 Token Embedding + GPT 风格 Transformer）
 
 ```
 输入: (B, n_channels, n_times) EEG epochs  = (B, 64, 1000)
    ↓
-Permute → (B, 1000, 64)  ← 时间步作为序列、64 通道作为 token 维度
+[Token Embedding 层]
+  Conv1d(64, 64, kernel=5, stride=20, padding=2): (B, 64, 50)
+        作用: 把 1000 时间步降采样为 50 tokens
+        kernel=5: 每个 token 来自 5 个相邻时间点（局部平滑）
+        stride=20: token 间不重叠
+        参数量: 64×64×5 = 20,480
    ↓
-Linear Projection → d_model=64: (B, 1000, 64)  ← identity（维度已匹配）
+Permute → (B, 50, 64)  ← 50 个 token、每 token 64 维
+   ↓
+Linear Projection → d_model=64: (B, 50, 64)  ← identity（维度已匹配）
    ↓
 [N × Decoder Blocks（带 RoPE + Causal Mask）]
-   每个 block 保持形状：输入 (B, 1000, 64) → 输出 (B, 1000, 64)
+   每个 block 保持形状：输入 (B, 50, 64) → 输出 (B, 50, 64)
    ↓
-逐位置 Linear(64 → n_classes): (B, 1000, n_classes)
+逐位置 Linear(64 → n_classes): (B, 50, n_classes)
    ↓
 取最后位置 ([:, -1, :]): (B, n_classes)   ← GPT 风格：最后位置预测
 ```
 
-### 设计哲学
+### Token Embedding 设计
 
-**纯 Transformer，端到端学习**：
-- **无 CNN 前端**：注意力机制是卷积的超集，让 attention 自己学所有模式
-- **无 patch 切分**：1000 tokens 直接输入，避免切分破坏局部结构
-- **无显式位置编码**（除 RoPE）：仅在 MHA 内部编码位置
-- **无手工特征工程**：模型从数据中端到端学习
+**为什么需要 Token Embedding**：
+- 1000 时间步直接喂 attention → 1000² = 100 万 ops/层 → 计算浪费
+- 50 tokens → 50² = 2500 ops/层 → **400 倍加速**
+- 用单层 Conv1d 把 1000 步 → 50 tokens，**同时完成降采样 + 局部平滑**
 
-**为什么不需要 CNN**：
-- 卷积是"固定权重的局部注意力"——权重训练后不变
-- 注意力是"动态权重的全局机制"——权重由输入决定
-- 数学上 attention 是 conv 的超集，可学会任何 conv 能学到的特征
-- 1000 tokens 在注意力计算上完全可行（1000² = 100 万 ops / 层）
+**为什么用 Conv1d(k=5, s=20) 而不是 mean pooling**：
+- Mean pooling 太粗暴，多个不同信号被平均掉
+- Conv1d 是可学习的，能保留更多判别信息
+- k=5 提供滑窗平滑，比硬边界（chunk+linear）好
+- 参数量 20,480（远小于 chunk+linear 的 81,920）
 
-### 与传统 EEG 深度学习的对比
+**为什么用 Conv1d(k=5, s=20) 而不是 chunk+linear**：
+- 滑窗感受野比硬边界保留更多上下文
+- 参数少 4 倍
+- 标准做法（EEGNet、Conv-TasNet 等）
 
-| 维度 | EEGNet / EEG-Conformer | 本设计（纯 Transformer） |
-|------|------------------------|--------------------------|
-| 局部特征提取 | Depthwise Conv | 注意力自动学 |
-| 通道关系建模 | 1×1 Conv / 注意力 | 注意力 |
-| 频段特征 | 多尺度 conv | 注意力 |
-| 特征工程 | 强 | 弱 |
-| 归纳偏置 | 多 | 极少 |
-| 数据需求 | 中等 | 较大（但 BCI 也常 fine-tune） |
+### Token Embedding 与 Patch 切分的关系
+
+**Token Embedding = "patch 化"的实现方式之一**：
+
+| 方式 | 实现 | 边界 | 参数量 |
+|------|------|------|--------|
+| Mean Pool | `F.avg_pool1d(20)` | 硬 | 0 |
+| Chunk + Linear | chunk + `Linear(1280, 64)` | 硬 | 81,920 |
+| **Conv1d(k=5, s=20)** ✅ | `Conv1d(64, 64, 5, 20)` | 滑窗 | **20,480** |
+| Conv1d(k=20, s=20) | `Conv1d(64, 64, 20, 20)` | 硬 | 81,920 |
+
+**本质**：Conv1d 等价于一个滑窗版的 chunk+linear，但参数更少、边界更平滑。
+
+### 与其他方案的对比
+
+| 方案 | 序列长度 | 注意力 ops/层 | 局部特征提取 | 端到端学习 |
+|------|----------|---------------|--------------|------------|
+| 纯 1000 tokens | 1000 | 100 万 | ❌（靠 attention） | ✅ |
+| Mean 降采样 | 50 | 2500 | ❌（粗暴平均） | ✅ |
+| **Conv1d 降采样** ✅ | 50 | 2500 | ✅（小核平滑） | ✅ |
+| 多尺度 CNN | 50 | 2500 | ✅✅ | ⚠️（需手工） |
 
 ### Decoder Block 内部结构（Pre-LN + Causal MHA + RoPE）
 
@@ -192,8 +214,9 @@ CrossEntropyLoss(y, logits)
 ### 模块拆分
 
 ```
-bci/decoder/transformer.py  (~180 行)
+bci/decoder/transformer.py  (~200 行)
 
+_TokenEmbedding             Conv1d(k=5, s=20) 降采样（~15 行）
 _RotaryPositionalEmbedding  RoPE 旋转编码（~30 行）
 _CausalMask                 因果 mask 生成（~10 行）
 _CausalMHA                  Causal Multi-Head Self-Attention + RoPE（~60 行）
@@ -303,7 +326,7 @@ self._method.addItems(['lda', 'ssvep', 'fbcca', 'cnn', 'transformer'])
 
 | 文件 | 行数 | 用途 |
 |------|------|------|
-| `bci/decoder/transformer.py` | ~180 | 核心实现（纯 Transformer + RoPE + Causal MHA） |
+| `bci/decoder/transformer.py` | ~200 | 核心实现（Token Embedding + RoPE + Causal MHA） |
 | `bci/tests/test_transformer.py` | ~150 | 单元测试 |
 | `bci/tests/test_transformer_e2e.py` | ~80 | 集成测试 |
 
