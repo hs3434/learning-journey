@@ -232,7 +232,7 @@ class StreamWorker(QObject):
         self._label_names = [str(c) for c in
                              getattr(self._model, 'classes_', np.array([]))]
 
-    def set_sliding_window(self, sw) -> None:
+    def set_sliding_window(self, sw: "SlidingWindow") -> None:
         """Configure a SlidingWindow for windowed online prediction.
 
         When set, _emit_chunk pushes chunks into sw and only calls
