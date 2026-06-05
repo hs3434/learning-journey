@@ -692,7 +692,7 @@ class SlidingWindow:
 ```
 
 **关键点**：
-- `SlidingWindow` 不属于任何 decoder，可放在 `bci/streaming/sliding_window.py`（v1 不实现，仅 spec 描述）
+- `SlidingWindow` 不属于任何 decoder，可放在 `bci/streaming/sliding_window.py`（v1.1 已实现，见 `bci/streaming/sliding_window.py`）
 - 调用方决定 trial 边界（调 `reset()`）
 - `window_size` / `decision_interval` 是 streaming 配置，与 decoder 解耦
 - 同一 `SlidingWindow` 可换不同 decoder（transformer / LDA / CNN 都行）
