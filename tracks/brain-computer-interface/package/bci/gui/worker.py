@@ -122,6 +122,7 @@ class StreamWorker(QObject):
         self._online_proc = None
         self._chunk_samples = 0
         self._chunk_duration = chunk_duration
+        self.sliding_window = None  # optional SlidingWindow for windowed prediction
 
     def start(self):
         """Start streaming data from file."""
@@ -216,6 +217,14 @@ class StreamWorker(QObject):
         self._model = Decoder.load(model_path)
         self._label_names = [str(c) for c in
                              getattr(self._model, 'classes_', np.array([]))]
+
+    def set_sliding_window(self, sw) -> None:
+        """Configure a SlidingWindow for windowed online prediction.
+
+        When set, _emit_chunk pushes chunks into sw and only calls
+        predict_proba when sw.ready() is True (instead of per-chunk).
+        """
+        self.sliding_window = sw
 
     @property
     def has_model(self) -> bool:
