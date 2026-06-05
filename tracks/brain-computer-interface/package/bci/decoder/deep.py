@@ -6,46 +6,37 @@ Simple 2D CNN for EEG classification using PyTorch.
 from __future__ import annotations
 import numpy as np
 from pathlib import Path
+import torch
+import torch.nn as nn
+import torch.optim as optim
 from bci.decoder.base import Decoder
 
-try:
-    import torch
-    import torch.nn as nn
-    import torch.optim as optim
-    TORCH_OK = True
-except ImportError:
-    TORCH_OK = False
 
-if TORCH_OK:
+class _EEGCNN(nn.Module):
+    """Lightweight 2D CNN: Conv -> BN -> ReLU -> Conv -> BN -> ReLU -> FC."""
 
-    class _EEGCNN(nn.Module):
-        """Lightweight 2D CNN: Conv -> BN -> ReLU -> Conv -> BN -> ReLU -> FC."""
+    def __init__(self, n_channels: int, n_times: int, n_classes: int,
+                 dropout: float = 0.25):
+        super().__init__()
+        self.conv1 = nn.Conv2d(1, 16, kernel_size=(n_channels, 3), padding=0)
+        self.bn1 = nn.BatchNorm2d(16)
+        self.conv2 = nn.Conv2d(16, 32, kernel_size=(1, 3), padding=0)
+        self.bn2 = nn.BatchNorm2d(32)
+        self.dropout = nn.Dropout(dropout)
 
-        def __init__(self, n_channels: int, n_times: int, n_classes: int,
-                     dropout: float = 0.25):
-            super().__init__()
-            self.conv1 = nn.Conv2d(1, 16, kernel_size=(n_channels, 3), padding=0)
-            self.bn1 = nn.BatchNorm2d(16)
-            self.conv2 = nn.Conv2d(16, 32, kernel_size=(1, 3), padding=0)
-            self.bn2 = nn.BatchNorm2d(32)
-            self.dropout = nn.Dropout(dropout)
+        with torch.no_grad():
+            dummy = torch.zeros(1, 1, n_channels, n_times)
+            x = self.bn2(self.conv2(self.bn1(self.conv1(dummy))))
+            self._flatten_size = x.view(1, -1).shape[1]
 
-            with torch.no_grad():
-                dummy = torch.zeros(1, 1, n_channels, n_times)
-                x = self.bn2(self.conv2(self.bn1(self.conv1(dummy))))
-                self._flatten_size = x.view(1, -1).shape[1]
+        self.fc = nn.Linear(self._flatten_size, n_classes)
 
-            self.fc = nn.Linear(self._flatten_size, n_classes)
-
-        def forward(self, x):
-            x = torch.relu(self.bn1(self.conv1(x)))
-            x = torch.relu(self.bn2(self.conv2(x)))
-            x = self.dropout(x)
-            x = x.view(x.size(0), -1)
-            return self.fc(x)
-
-else:
-    _EEGCNN = None  # type: ignore
+    def forward(self, x):
+        x = torch.relu(self.bn1(self.conv1(x)))
+        x = torch.relu(self.bn2(self.conv2(x)))
+        x = self.dropout(x)
+        x = x.view(x.size(0), -1)
+        return self.fc(x)
 
 
 class CNNDecoder(Decoder):
@@ -56,8 +47,6 @@ class CNNDecoder(Decoder):
 
     def __init__(self, epochs: int = 30, lr: float = 1e-3,
                  dropout: float = 0.25, device: str = 'cpu'):
-        if not TORCH_OK:
-            raise ImportError("PyTorch required for CNNDecoder")
         self.epochs = epochs
         self.lr = lr
         self.dropout = dropout

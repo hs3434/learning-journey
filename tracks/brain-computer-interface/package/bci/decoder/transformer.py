@@ -9,184 +9,171 @@ Training in v1 requires uniform n_times within a batch.
 from __future__ import annotations
 import numpy as np
 from pathlib import Path
+import torch
+import torch.nn as nn
+import torch.optim as optim
 from bci.decoder.base import Decoder
 
-try:
-    import torch
-    import torch.nn as nn
-    import torch.optim as optim
-    TORCH_OK = True
-except ImportError:
-    TORCH_OK = False
+
+class _TokenEmbedding(nn.Module):
+    """Conv1d(n_ch, n_ch, k, s) time-domain → token sequence.
+
+    Input: (B, n_ch, n_times)
+    Output: (B, n_tokens, n_ch) where n_tokens = (n_times - k) // s + 1
+    """
+
+    def __init__(self, n_channels: int, kernel: int, stride: int):
+        super().__init__()
+        self.conv = nn.Conv1d(n_channels, n_channels,
+                              kernel_size=kernel, stride=stride)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.conv(x).transpose(1, 2)
 
 
-if TORCH_OK:
+class _CausalMask(nn.Module):
+    """Causal attention mask: mask[q, k] = -inf if k > q else 0."""
 
-    class _TokenEmbedding(nn.Module):
-        """Conv1d(n_ch, n_ch, k, s) time-domain → token sequence.
+    def __init__(self, size: int):
+        super().__init__()
+        mask = torch.triu(torch.full((size, size), float("-inf")), diagonal=1)
+        self.register_buffer("mask", mask, persistent=False)
 
-        Input: (B, n_ch, n_times)
-        Output: (B, n_tokens, n_ch) where n_tokens = (n_times - k) // s + 1
-        """
-
-        def __init__(self, n_channels: int, kernel: int, stride: int):
-            super().__init__()
-            self.conv = nn.Conv1d(n_channels, n_channels,
-                                  kernel_size=kernel, stride=stride)
-
-        def forward(self, x: torch.Tensor) -> torch.Tensor:
-            return self.conv(x).transpose(1, 2)
+    def forward(self, n: int) -> torch.Tensor:
+        if n <= self.mask.shape[0]:
+            return self.mask[:n, :n]
+        return torch.triu(torch.full((n, n), float("-inf")), diagonal=1)
 
 
-    class _CausalMask(nn.Module):
-        """Causal attention mask: mask[q, k] = -inf if k > q else 0."""
+class _RotaryPositionalEmbedding(nn.Module):
+    """RoPE: rotates Q/K by position-dependent angles.
 
-        def __init__(self, size: int):
-            super().__init__()
-            mask = torch.triu(torch.full((size, size), float("-inf")), diagonal=1)
-            self.register_buffer("mask", mask, persistent=False)
+    Pairs (2i, 2i+1) share angle m * theta_i for i in [0, d/2).
+    """
 
-        def forward(self, n: int) -> torch.Tensor:
-            if n <= self.mask.shape[0]:
-                return self.mask[:n, :n]
-            return torch.triu(torch.full((n, n), float("-inf")), diagonal=1)
+    def __init__(self, d_model: int, max_seq_len: int = 4096,
+                 base: float = 10000.0):
+        super().__init__()
+        if d_model % 2 != 0:
+            raise ValueError(f"d_model must be even, got {d_model}")
+        self.d_model = d_model
+        inv_freq = 1.0 / (base ** (torch.arange(0, d_model, 2).float()
+                                  / d_model))
+        self.register_buffer("inv_freq", inv_freq, persistent=False)
+        self._cached_max = -1
+        self._cos: torch.Tensor | None = None
+        self._sin: torch.Tensor | None = None
 
+    def _build_cache(self, max_len: int, device, dtype):
+        if max_len <= self._cached_max and self._cos is not None:
+            return
+        t = torch.arange(max_len, device=device, dtype=self.inv_freq.dtype)
+        freqs = torch.outer(t, self.inv_freq)
+        self._cos = freqs.cos().to(dtype)
+        self._sin = freqs.sin().to(dtype)
+        self._cached_max = max_len
 
-    class _RotaryPositionalEmbedding(nn.Module):
-        """RoPE: rotates Q/K by position-dependent angles.
+    def _rotate_half(self, x: torch.Tensor) -> torch.Tensor:
+        x1 = x[..., 0::2]
+        x2 = x[..., 1::2]
+        return torch.stack((-x2, x1), dim=-1).flatten(-2)
 
-        Pairs (2i, 2i+1) share angle m * theta_i for i in [0, d/2).
-        """
-
-        def __init__(self, d_model: int, max_seq_len: int = 4096,
-                     base: float = 10000.0):
-            super().__init__()
-            if d_model % 2 != 0:
-                raise ValueError(f"d_model must be even, got {d_model}")
-            self.d_model = d_model
-            inv_freq = 1.0 / (base ** (torch.arange(0, d_model, 2).float()
-                                      / d_model))
-            self.register_buffer("inv_freq", inv_freq, persistent=False)
-            self._cached_max = -1
-            self._cos: torch.Tensor | None = None
-            self._sin: torch.Tensor | None = None
-
-        def _build_cache(self, max_len: int, device, dtype):
-            if max_len <= self._cached_max and self._cos is not None:
-                return
-            t = torch.arange(max_len, device=device, dtype=self.inv_freq.dtype)
-            freqs = torch.outer(t, self.inv_freq)
-            self._cos = freqs.cos().to(dtype)
-            self._sin = freqs.sin().to(dtype)
-            self._cached_max = max_len
-
-        def _rotate_half(self, x: torch.Tensor) -> torch.Tensor:
-            x1 = x[..., 0::2]
-            x2 = x[..., 1::2]
-            return torch.stack((-x2, x1), dim=-1).flatten(-2)
-
-        def forward(self, x: torch.Tensor, positions: torch.Tensor) -> torch.Tensor:
-            self._build_cache(int(positions.max().item()) + 1,
-                              x.device, x.dtype)
-            cos = self._cos[positions].repeat_interleave(2, dim=-1).unsqueeze(0)
-            sin = self._sin[positions].repeat_interleave(2, dim=-1).unsqueeze(0)
-            return (x * cos) + (self._rotate_half(x) * sin)
+    def forward(self, x: torch.Tensor, positions: torch.Tensor) -> torch.Tensor:
+        self._build_cache(int(positions.max().item()) + 1,
+                          x.device, x.dtype)
+        cos = self._cos[positions].repeat_interleave(2, dim=-1).unsqueeze(0)
+        sin = self._sin[positions].repeat_interleave(2, dim=-1).unsqueeze(0)
+        return (x * cos) + (self._rotate_half(x) * sin)
 
 
-    class _CausalMHA(nn.Module):
-        """Causal multi-head self-attention with RoPE."""
+class _CausalMHA(nn.Module):
+    """Causal multi-head self-attention with RoPE."""
 
-        def __init__(self, d_model: int, n_heads: int, dropout: float,
-                     max_seq_len: int):
-            super().__init__()
-            assert d_model % n_heads == 0
-            self.d_model = d_model
-            self.n_heads = n_heads
-            self.head_dim = d_model // n_heads
-            self.q_proj = nn.Linear(d_model, d_model)
-            self.k_proj = nn.Linear(d_model, d_model)
-            self.v_proj = nn.Linear(d_model, d_model)
-            self.out_proj = nn.Linear(d_model, d_model)
-            self.attn_drop = nn.Dropout(dropout)
-            self.resid_drop = nn.Dropout(dropout)
-            self.rope = _RotaryPositionalEmbedding(d_model, max_seq_len)
-            self.mask = _CausalMask(max_seq_len)
+    def __init__(self, d_model: int, n_heads: int, dropout: float,
+                 max_seq_len: int):
+        super().__init__()
+        assert d_model % n_heads == 0
+        self.d_model = d_model
+        self.n_heads = n_heads
+        self.head_dim = d_model // n_heads
+        self.q_proj = nn.Linear(d_model, d_model)
+        self.k_proj = nn.Linear(d_model, d_model)
+        self.v_proj = nn.Linear(d_model, d_model)
+        self.out_proj = nn.Linear(d_model, d_model)
+        self.attn_drop = nn.Dropout(dropout)
+        self.resid_drop = nn.Dropout(dropout)
+        self.rope = _RotaryPositionalEmbedding(d_model, max_seq_len)
+        self.mask = _CausalMask(max_seq_len)
 
-        def forward(self, x: torch.Tensor) -> torch.Tensor:
-            B, T, _ = x.shape
-            Q = self.q_proj(x)
-            K = self.k_proj(x)
-            V = self.v_proj(x)
-            positions = torch.arange(T, device=x.device)
-            Q = self.rope(Q, positions)
-            K = self.rope(K, positions)
-            Q = Q.view(B, T, self.n_heads, self.head_dim).transpose(1, 2)
-            K = K.view(B, T, self.n_heads, self.head_dim).transpose(1, 2)
-            V = V.view(B, T, self.n_heads, self.head_dim).transpose(1, 2)
-            scores = (Q @ K.transpose(-2, -1)) / (self.head_dim ** 0.5)
-            scores = scores + self.mask(T)
-            attn = torch.softmax(scores, dim=-1)
-            attn = self.attn_drop(attn)
-            out = (attn @ V).transpose(1, 2).contiguous().view(B, T, self.d_model)
-            return self.resid_drop(self.out_proj(out))
-
-
-    class _FeedForward(nn.Module):
-        def __init__(self, d_model: int, dropout: float):
-            super().__init__()
-            self.fc1 = nn.Linear(d_model, 4 * d_model)
-            self.fc2 = nn.Linear(4 * d_model, d_model)
-            self.drop = nn.Dropout(dropout)
-
-        def forward(self, x: torch.Tensor) -> torch.Tensor:
-            return self.drop(self.fc2(torch.nn.functional.gelu(self.fc1(x))))
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        B, T, _ = x.shape
+        Q = self.q_proj(x)
+        K = self.k_proj(x)
+        V = self.v_proj(x)
+        positions = torch.arange(T, device=x.device)
+        Q = self.rope(Q, positions)
+        K = self.rope(K, positions)
+        Q = Q.view(B, T, self.n_heads, self.head_dim).transpose(1, 2)
+        K = K.view(B, T, self.n_heads, self.head_dim).transpose(1, 2)
+        V = V.view(B, T, self.n_heads, self.head_dim).transpose(1, 2)
+        scores = (Q @ K.transpose(-2, -1)) / (self.head_dim ** 0.5)
+        scores = scores + self.mask(T)
+        attn = torch.softmax(scores, dim=-1)
+        attn = self.attn_drop(attn)
+        out = (attn @ V).transpose(1, 2).contiguous().view(B, T, self.d_model)
+        return self.resid_drop(self.out_proj(out))
 
 
-    class _DecoderBlock(nn.Module):
-        """Pre-LN decoder block: MHA + FFN with residuals."""
+class _FeedForward(nn.Module):
+    def __init__(self, d_model: int, dropout: float):
+        super().__init__()
+        self.fc1 = nn.Linear(d_model, 4 * d_model)
+        self.fc2 = nn.Linear(4 * d_model, d_model)
+        self.drop = nn.Dropout(dropout)
 
-        def __init__(self, d_model: int, n_heads: int, dropout: float,
-                     max_seq_len: int):
-            super().__init__()
-            self.ln1 = nn.LayerNorm(d_model)
-            self.attn = _CausalMHA(d_model, n_heads, dropout, max_seq_len)
-            self.ln2 = nn.LayerNorm(d_model)
-            self.ffn = _FeedForward(d_model, dropout)
-
-        def forward(self, x: torch.Tensor) -> torch.Tensor:
-            x = x + self.attn(self.ln1(x))
-            x = x + self.ffn(self.ln2(x))
-            return x
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.drop(self.fc2(torch.nn.functional.gelu(self.fc1(x))))
 
 
-    class _EEGTransformer(nn.Module):
-        """Token Embedding + N×DecoderBlock + per-position classifier + last slice."""
+class _DecoderBlock(nn.Module):
+    """Pre-LN decoder block: MHA + FFN with residuals."""
 
-        def __init__(self, n_channels: int, n_classes: int,
-                     d_model: int = 64, n_heads: int = 4, n_layers: int = 3,
-                     kernel: int = 20, stride: int = 10,
-                     dropout: float = 0.2, max_seq_len: int = 1024):
-            super().__init__()
-            self.token_embed = _TokenEmbedding(n_channels, kernel, stride)
-            self.input_proj = nn.Linear(n_channels, d_model)
-            self.blocks = nn.ModuleList([
-                _DecoderBlock(d_model, n_heads, dropout, max_seq_len)
-                for _ in range(n_layers)
-            ])
-            self.classifier = nn.Linear(d_model, n_classes)
+    def __init__(self, d_model: int, n_heads: int, dropout: float,
+                 max_seq_len: int):
+        super().__init__()
+        self.ln1 = nn.LayerNorm(d_model)
+        self.attn = _CausalMHA(d_model, n_heads, dropout, max_seq_len)
+        self.ln2 = nn.LayerNorm(d_model)
+        self.ffn = _FeedForward(d_model, dropout)
 
-        def forward(self, x: torch.Tensor) -> torch.Tensor:
-            x = self.token_embed(x)
-            x = self.input_proj(x)
-            for block in self.blocks:
-                x = block(x)
-            return self.classifier(x[:, -1, :])
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = x + self.attn(self.ln1(x))
+        x = x + self.ffn(self.ln2(x))
+        return x
 
-else:
-    _TokenEmbedding = None  # type: ignore
-    _CausalMask = None  # type: ignore
-    _RotaryPositionalEmbedding = None  # type: ignore
-    _EEGTransformer = None  # type: ignore
+
+class _EEGTransformer(nn.Module):
+    """Token Embedding + N×DecoderBlock + per-position classifier + last slice."""
+
+    def __init__(self, n_channels: int, n_classes: int,
+                 d_model: int = 64, n_heads: int = 4, n_layers: int = 3,
+                 kernel: int = 20, stride: int = 10,
+                 dropout: float = 0.2, max_seq_len: int = 1024):
+        super().__init__()
+        self.token_embed = _TokenEmbedding(n_channels, kernel, stride)
+        self.input_proj = nn.Linear(n_channels, d_model)
+        self.blocks = nn.ModuleList([
+            _DecoderBlock(d_model, n_heads, dropout, max_seq_len)
+            for _ in range(n_layers)
+        ])
+        self.classifier = nn.Linear(d_model, n_classes)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.token_embed(x)
+        x = self.input_proj(x)
+        for block in self.blocks:
+            x = block(x)
+        return self.classifier(x[:, -1, :])
 
 
 class TransformerDecoder(Decoder):
@@ -209,8 +196,6 @@ class TransformerDecoder(Decoder):
         weight_decay: float = 1e-4,
         device: str = 'cpu',
     ) -> None:
-        if not TORCH_OK:
-            raise ImportError("PyTorch required for TransformerDecoder")
         if d_model % n_heads != 0:
             raise ValueError(
                 f"d_model={d_model} must be divisible by n_heads={n_heads}"

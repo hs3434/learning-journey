@@ -6,8 +6,7 @@ import pytest
 import numpy as np
 
 
-pytest.importorskip("torch", reason="PyTorch required for TransformerDecoder")
-from bci.decoder.transformer import TransformerDecoder  # noqa: E402
+from bci.decoder.transformer import TransformerDecoder
 
 
 def _generate_epochs(n_epochs=20, n_channels=4, n_times=200, n_classes=2, seed=42):

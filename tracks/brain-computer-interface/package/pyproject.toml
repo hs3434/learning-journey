@@ -29,9 +29,7 @@ include = ["."]
 
 [tool.pyright]
 ignore = ["**/gui/**"]
-
-[tool.pyright.venv]
-pythonPath = ".venv"
+venv = ".venv"
 
 [dependency-groups]
 dev = [

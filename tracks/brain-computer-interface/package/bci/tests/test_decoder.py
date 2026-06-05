@@ -8,7 +8,6 @@ import tempfile
 from pathlib import Path
 
 
-pytest.importorskip("torch", reason="PyTorch required for CNNDecoder")
 from bci.decoder.deep import CNNDecoder
 
 
