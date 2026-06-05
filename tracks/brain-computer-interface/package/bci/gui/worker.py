@@ -169,7 +169,21 @@ class StreamWorker(QObject):
 
         if self._model is not None:
             try:
-                X = chunk[None, :, :]
+                if self.sliding_window is not None:
+                    self.sliding_window.push(chunk)
+                    if not self.sliding_window.ready():
+                        # Also emit spectrum/progress even when not predicting
+                        freqs, psd = welch(chunk[0], self.source.sfreq,
+                                           nperseg=min(128, chunk.shape[1]))
+                        self.spectrum_updated.emit(freqs, psd)
+                        self.progress.emit(self.source.progress)
+                        return
+                    window = self.sliding_window.get_window()
+                    X = window[None, :, :]
+                    self.sliding_window.consume()
+                else:
+                    X = chunk[None, :, :]
+
                 proba = self._model.predict_proba(X)[0]
                 pred_idx = int(np.argmax(proba))
                 label = (self._label_names[pred_idx]
