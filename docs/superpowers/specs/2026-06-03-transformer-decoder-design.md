@@ -4,6 +4,8 @@
 **状态**：待审阅
 **目标**：在 BCI 解码框架中新增 `Transformer` 解码器，作为可拔插插件。
 
+> **命名说明**：本文中"Transformer 解码器"（Transformer decoder）指 GPT 风格的因果自回归式架构（causal MHA + 末位切片），**不是** encoder-decoder 架构（无 cross-attention、无编码器）。命名沿用 BCI 领域惯用说法（"decoder"=分类器），与原始 Transformer 论文术语不同。
+
 ## 背景与目标
 
 项目当前有 4 个解码器：`lda` / `ssvep` / `fbcca` / `cnn`，通过 `@register` 装饰器注册到 `bci/decoder/__init__.py` 的注册表。新增 Transformer 解码器，沿用现有 ABC 接口（`fit` / `predict` / `predict_proba` / `save` / `load`）。
@@ -27,7 +29,7 @@
 | 输入投影 | `Linear(n_ch, d_model)` | 显式对齐到 d_model |
 | 模型长度 | **length-agnostic** | 架构支持任意 `X.shape[2] >= kernel`（见"length-agnostic 设计"） |
 | n_channels 传入 | **从 X.shape[1] 在 fit 时推断、锁存** | 上游 `decode(epochs_data, ...)` 隐式携带 |
-| n_times 锁存 | **不锁存** | 模型 length-agnostic，不强制等于训练 size |
+| n_times 锁存 | **不锁存**（仅限推理） | 模型 length-agnostic，**推理时** n_times 任意（>= kernel）；**训练时** v1 要求同形 |
 | 实时 streaming | **不实现** | 由应用层 SlidingWindow wrapper 负责（见末尾章节） |
 | KV cache | **不实现**（后续扩展） | 当前 sliding window 抽象下不需要 |
 | 依赖 | 手写多头自注意力 + RoPE | 零新依赖 |
@@ -132,6 +134,13 @@ softmax → (B, n_classes) 概率
 - n_tokens 太粗（每个 token = 20 时间步 = 125ms）
 - 时间分辨率不够细，错过 SSVEP 相位、MI 动态等特征
 - 50% 重叠可让相邻 token 共享信息，避免边界割裂
+
+**v1 已知限制：SSVEP 相位精度**
+- k=20, s=10 下每个 token = 10 时间步 ≈ 62.5ms（@160Hz）
+- SSVEP 典型频率 8–15Hz，对应周期 67–125ms
+- 64Hz 以上的 SSVEP 高频谐波分量可能无法精确分辨
+- v1 推荐 Transformer 用于 MI / ERP 任务；SSVEP 优先选 `ssvep` / `fbcca` 解码器
+- 解决路径（不在 v1 范围）：减小 stride（如 s=4, k=8）或换用复数特征输入
 
 **为什么不更大 kernel**：
 - k=40, s=10：参数量翻倍，BCI 小样本易过拟合
@@ -342,14 +351,15 @@ class TransformerDecoder(Decoder):
         assert kernel >= stride, f"kernel={kernel} must be >= stride={stride} (no info loss)"
         assert kernel > 0 and stride > 0
         # n_channels 在 fit 时从 X.shape[1] 推断
-        # n_times 不锁存（length-agnostic）
+        # n_times 推理时不锁存（length-agnostic）；训练时 v1 要求同形
         ...
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> 'TransformerDecoder':
-        """训练。X: (n_samples, n_channels, n_times)，n_times 不要求固定。
+        """训练。X: (n_samples, n_channels, n_times)，**v1 要求 batch 内 n_times 相同**。
         y: (n_samples,) 类别标签
         - 推断 n_channels = X.shape[1] → 锁存 self.n_channels
         - 推断 n_classes = len(np.unique(y)) → 锁存 self.classes_
+        - 记录训练时的 n_tokens → self._train_n_tokens（推理时用于外推警告）
         - 第一次见到数据时构建模型（懒构建）
         - 全 batch 训练（AdamW + CrossEntropy）
         - 完成后 model.eval()
@@ -393,11 +403,12 @@ def predict_proba(self, X):
             f"X.shape[2]={X.shape[2]} < kernel={self.kernel}; "
             f"need at least 1 token"
         )
-    if X.shape[2] > self._train_n_times:
+    n_tokens = (X.shape[2] - self.kernel) // self.stride + 1
+    if n_tokens > self._train_n_tokens:
         # 训练分布外，RoPE 外推
         import warnings
         warnings.warn(
-            f"X.shape[2]={X.shape[2]} > train n_times={self._train_n_times}; "
+            f"n_tokens={n_tokens} > train n_tokens={self._train_n_tokens}; "
             f"RoPE position extrapolation; accuracy may degrade",
             stacklevel=2,
         )
@@ -419,12 +430,16 @@ try:
 except ImportError:
     TORCH_OK = False
 
-if not TORCH_OK:
-    _EEGTransformer = None
-    TransformerDecoder = None  # type: ignore
+if TORCH_OK:
+
+    class _EEGTransformer(nn.Module):
+        ...
+
+    class TransformerDecoder(Decoder):
+        ...
 ```
 
-未安装 PyTorch 时不报错，但注册表中 `'transformer'` 不可用——与 `CNNDecoder` 行为一致。
+未安装 PyTorch 时 `TransformerDecoder` 类不定义（`bci.decoder.transformer` 模块导入不报错），注册表的 `_TransformerDecoder.create()` 在调用时才尝试 `from bci.decoder.transformer import TransformerDecoder`——与 `CNNDecoder` 完全一致。
 
 ### n_channels 处理（fit 时从 X.shape 推断）
 
@@ -433,8 +448,8 @@ def fit(self, X, y):
     n_samples, n_channels, n_times = X.shape
     # 推断并锁存 n_channels（模型架构需要）
     self.n_channels = n_channels
-    # 记录训练时的 n_times（仅用于外推警告，不锁存）
-    self._train_n_times = n_times
+    # 记录训练时的 n_tokens（仅用于外推警告，RoPE 位置在 token 空间）
+    self._train_n_tokens = (n_times - self.kernel) // self.stride + 1
     # 推断 n_classes
     classes, y_idx = np.unique(y, return_inverse=True)
     self.classes_ = classes
@@ -535,7 +550,19 @@ self._method.addItems(['lda', 'ssvep', 'fbcca', 'cnn', 'transformer'])
 | **集成：save/load** | 往返预测一致性 |
 | **集成：decode()** | 跑通 `decode(method='transformer')` 端到端流程 |
 | **集成：与 LDA/CNN 一致性** | `predict_proba` 接口签名相同、返回形状相同 |
-| **基准：vs CNNDecoder** | 同一数据精度 + 速度对比 |
+
+## 训练细节
+
+- **优化器**：AdamW
+- **Loss**：CrossEntropyLoss
+- **批大小**：full-batch（BCI 数据量小）
+- **n_times 约束**：v1 **要求同形**——训练 batch 内所有 sample 的 `n_times` 必须相同。架构本身 length-agnostic，但训练循环用 `torch.tensor(X, ...)` + 批处理 forward，不支持混合长度
+- **推理 n_times**：任意（>= kernel），与训练 size 不同不报错，只触发外推警告
+- **典型场景**：训练和推理用同一 n_times
+- **数据增强**：不在初版中实现
+- **学习率调度**：不在初版中实现
+- **早停**：不在初版中实现
+- **不使用 random prefix truncation**：模型在训练和推理都见完整窗口，不需要 prefix 鲁棒性
 
 ## 边界处理
 
@@ -547,21 +574,10 @@ self._method.addItems(['lda', 'ssvep', 'fbcca', 'cnn', 'transformer'])
 | 训练 `X.shape[0] != len(y)` | `fit()` 抛 `ValueError` |
 | `predict_proba` 时 `X.shape[1] != n_channels` | `ValueError`（fit 锁定） |
 | `predict_proba` 时 `X.shape[2] < kernel` | `ValueError`（无法形成 1 个 token） |
-| `predict_proba` 时 `X.shape[2] > train n_times` | **允许**，warn 一次（RoPE 外推区） |
+| `predict_proba` 时 `n_tokens > train n_tokens` | **允许**，warn 一次（RoPE 外推区；按 token 数判，不用 sample 数） |
 | `predict_proba` / `predict` 前未 `fit()` | `RuntimeError` |
 | `n_classes < 2` | `fit()` 抛 `ValueError` |
-| PyTorch 未安装 | `TransformerDecoder` 为 `None`，注册表查不到（与 CNN 一致） |
-
-## 训练细节
-
-- **优化器**：AdamW
-- **Loss**：CrossEntropyLoss
-- **批大小**：full-batch（BCI 数据量小；length-agnostic 允许不同 n_times 混合）
-- **数据增强**：不在初版中实现
-- **学习率调度**：不在初版中实现
-- **早停**：不在初版中实现
-- **模型 length-agnostic**：训练时 n_times 任意（>= kernel），推理时 n_times 任意（>= kernel）。典型场景：训练和推理用同一 n_times。
-- **不使用 random prefix truncation**：模型在训练和推理都见完整窗口，不需要 prefix 鲁棒性
+| PyTorch 未安装 | `TransformerDecoder` 类不定义；调用 `create()` 时 `ImportError`（与 CNN 一致） |
 
 ## 风险与权衡
 
@@ -572,11 +588,18 @@ self._method.addItems(['lda', 'ssvep', 'fbcca', 'cnn', 'transformer'])
 | 推理 n_times > 训练 n_times | 允许但 warn；位置编码进入外推区，质量可能下降 |
 | 推理 n_times ≪ 训练 n_times（1-2 token） | 末位 token 上下文不足，预测基本靠训练先验；用户责任 |
 | 参数量 | Token Embedding ~82K（n_ch=d_model=64, k=20） + 3 × DecoderBlock ~150K ≈ **230K**（d_model=64, n_heads=4）；可通过降 `d_model` 或 `n_layers` 压缩 |
-| 不同 trial n_times 不一致 | 不锁存，model 自动适配（length-agnostic） |
+| **推理**时不同 trial n_times 不一致 | model 自动适配（length-agnostic）；仅当 n_tokens > 训练时触发外推警告。**训练时** n_times 必须同形（见"训练细节"） |
 
 ## 后续扩展（不在本次实现范围）
 
 - **KV cache**（仅当未来放弃 sliding window、回到 growing prefix 时再考虑；sliding window 下位置变导致 cache 失效）
+- **Length-bucketed training**（按 `n_times` 分桶训练，每桶内同形，跨桶混 batch）
+  - 动机：当前 v1 限制同形 n_times；分桶可支持混合长度 trial
+  - 实现：custom `Dataset` + 按长度分桶的 `Sampler` + `collate_fn`（仅 stack，不 padding）
+  - 关键风险：RoPE 位置频率跨桶不均（短桶位置 0..k 反复训练，长桶位置仅偶尔曝光）→ 长位置编码欠拟合
+  - 待定超参：桶数 / 划分策略（quantile vs fixed-width）/ 桶内 batch size / 排序
+  - 前置：v1 上线、有真实混合长度数据后再评估收益
+- **基准对比 vs CNNDecoder**（同一公开数据集的精度 + 推理速度对比，需先选定数据集与评测脚本）
 - **数据增强**（时间抖动、通道掩码）
 - **跨被试预训练**
 - **注意力权重可视化**
