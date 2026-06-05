@@ -10,7 +10,7 @@ from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
     QGroupBox, QDoubleSpinBox, QSlider, QCheckBox, QTextEdit,
-    QProgressBar, QMessageBox, QFileDialog,
+    QProgressBar, QMessageBox, QFileDialog, QSpinBox,
 )
 from PyQt6.QtCore import Qt
 
@@ -90,6 +90,21 @@ class StreamTab(QWidget):
         self.loop_cb = QCheckBox("Loop")
         self.loop_cb.setChecked(False)
         toolbar.addWidget(self.loop_cb)
+
+        toolbar.addSpacing(20)
+        toolbar.addWidget(QLabel("Window:"))
+        self.window_size_input = QSpinBox()
+        self.window_size_input.setRange(50, 5000)
+        self.window_size_input.setValue(1000)
+        self.window_size_input.setSuffix(" smp")
+        toolbar.addWidget(self.window_size_input)
+
+        toolbar.addWidget(QLabel("Step:"))
+        self.decision_interval_input = QSpinBox()
+        self.decision_interval_input.setRange(1, 1000)
+        self.decision_interval_input.setValue(25)
+        self.decision_interval_input.setSuffix(" smp")
+        toolbar.addWidget(self.decision_interval_input)
 
         toolbar.addStretch()
         self.status_label = QLabel("Ready")
@@ -254,6 +269,15 @@ class StreamTab(QWidget):
         self._worker.set_speed(self.speed_input.value())
         self._worker.set_filter(self.l_freq.value(), self.h_freq.value())
         self._worker.set_loop(self.loop_cb.isChecked())
+
+        # Configure SlidingWindow for windowed prediction
+        from bci.streaming import SlidingWindow
+        swin = SlidingWindow(
+            n_channels=self._source.n_channels,
+            window_size=self.window_size_input.value(),
+            decision_interval=self.decision_interval_input.value(),
+        )
+        self._worker.set_sliding_window(swin)
 
         n_ch = self._source.n_channels
         sfreq = self._source.sfreq
