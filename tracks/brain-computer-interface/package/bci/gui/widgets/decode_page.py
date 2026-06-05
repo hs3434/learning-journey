@@ -25,7 +25,7 @@ class DecodePage(QFrame):
         glay = QHBoxLayout()
         glay.addWidget(QLabel("Method:"))
         self._method = QComboBox()
-        self._method.addItems(['lda', 'ssvep', 'fbcca', 'cnn'])
+        self._method.addItems(['lda', 'ssvep', 'fbcca', 'cnn', 'transformer'])
         glay.addWidget(self._method)
         glay.addWidget(QLabel("CV Folds:"))
         self._cv_folds = QSpinBox()

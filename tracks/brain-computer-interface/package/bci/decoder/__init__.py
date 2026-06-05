@@ -83,6 +83,14 @@ class _CNNDecoder:
         return CNNDecoder(**kw)
 
 
+@register('transformer')
+class _TransformerDecoder:
+    @staticmethod
+    def create(**kw):
+        from bci.decoder.transformer import TransformerDecoder
+        return TransformerDecoder(**kw)
+
+
 # ----------------------------------------------------------------
 # Top-level API
 # ----------------------------------------------------------------
@@ -95,7 +103,7 @@ def decode(epochs_data: np.ndarray, labels: np.ndarray,
     Args:
         epochs_data: (n_epochs, n_channels, n_samples)
         labels: (n_epochs,) class labels
-        method: 'lda' | 'ssvep' | 'fbcca' | 'cnn'
+        method: 'lda' | 'ssvep' | 'fbcca' | 'cnn' | 'transformer'
         cv_folds: cross-validation folds (ignored for SSVEP/FBCCA)
         **decoder_kwargs: passed to decoder constructor
 
