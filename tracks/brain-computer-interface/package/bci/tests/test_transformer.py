@@ -95,7 +95,11 @@ class TestTransformerDecoder:
         with pytest.raises(ValueError, match="n_channels"):
             decoder.predict_proba(X_bad)
 
-    def test_predict_proba_n_times_too_small_raises(self, decoder, epochs):
+    def test_predict_proba_n_times_too_small_raises(self, epochs):
+        # Use explicit kernel to make "too small" check deterministic
+        # (auto-mode with n_times=200 → kernel=2, too small for this test)
+        decoder = TransformerDecoder(d_model=64, n_heads=4, n_layers=2,
+                                     kernel=20, stride=10, epochs=3, lr=1e-3)
         X, y = epochs
         decoder.fit(X, y)
         X_bad = np.random.randn(2, 4, 5).astype(np.float32)
@@ -243,3 +247,36 @@ class TestEEGTransformerForward:
             x = t.randn(2, 4, n_times)
             out = model(x)
             assert tuple(out.shape) == (2, 2)
+
+
+class TestAutoKernelStride:
+    """Auto-pick kernel/stride so n_tokens stays in target range."""
+
+    def test_auto_picks_kernel_stride_when_none(self):
+        dec = TransformerDecoder(epochs=1, target_tokens=128)
+        X = np.random.randn(8, 4, 600).astype(np.float32)
+        y = np.array([0, 1] * 4)
+        dec.fit(X, y)
+        # 600 // 128 = 4 → stride=4, kernel=8 → tokens=(600-8)/4+1=149
+        assert dec.stride == 4
+        assert dec.kernel == 8
+        assert 100 <= dec._train_n_tokens <= 150
+
+    def test_explicit_kernel_stride_override_auto(self):
+        dec = TransformerDecoder(epochs=1, kernel=20, stride=10)
+        X = np.random.randn(8, 4, 600).astype(np.float32)
+        y = np.array([0, 1] * 4)
+        dec.fit(X, y)
+        assert dec.kernel == 20 and dec.stride == 10
+
+    def test_auto_for_short_signal_uses_max_resolution(self):
+        # n_times=50, target=128 → stride=max(1, 50//128)=1, kernel=2
+        dec = TransformerDecoder(epochs=1, target_tokens=128)
+        X = np.random.randn(8, 4, 50).astype(np.float32)
+        y = np.array([0, 1] * 4)
+        dec.fit(X, y)
+        assert dec.stride == 1 and dec.kernel == 2
+
+    def test_partial_kernel_stride_raises(self):
+        with pytest.raises(ValueError, match="both"):
+            TransformerDecoder(kernel=10, stride=None)

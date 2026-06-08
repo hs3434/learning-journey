@@ -188,41 +188,100 @@ class TransformerDecoder(Decoder):
         d_model: int = 64,
         n_heads: int = 4,
         n_layers: int = 3,
-        kernel: int = 20,
-        stride: int = 10,
+        kernel: int | None = None,
+        stride: int | None = None,
+        target_tokens: int = 128,
         dropout: float = 0.2,
         epochs: int = 50,
         lr: float = 5e-4,
         weight_decay: float = 1e-4,
+        batch_size: int = 32,
+        normalize: bool = True,
         device: str = 'cpu',
     ) -> None:
+        """GPT-style causal Transformer.
+
+        Parameters
+        ----------
+        kernel, stride : int or None
+            Conv1d token embedding kernel/stride.
+            If both None, auto-pick at fit() time so n_tokens ≈ target_tokens.
+            If both given, use them directly (must satisfy kernel >= stride > 0).
+        target_tokens : int
+            Desired number of tokens when auto-picking kernel/stride.
+            Default 128 — gives transformer enough sequence length to model
+            temporal dependencies without exploding O(N²) attention cost.
+            Clamped to [16, 256] internally.
+        batch_size : int
+            Mini-batch size for SGD training. Default 32.
+            If batch_size >= n_samples, falls back to full-batch.
+        normalize : bool
+            If True, per-channel z-score normalize input X using training-set
+            statistics (mean/std computed across samples × time, per channel).
+            Stats are persisted in save() and applied in predict_proba().
+        """
         if d_model % n_heads != 0:
             raise ValueError(
                 f"d_model={d_model} must be divisible by n_heads={n_heads}"
             )
-        if kernel <= 0 or stride <= 0:
+        # kernel/stride can be None (auto) — validate only if both given
+        if kernel is not None and stride is not None:
+            if kernel <= 0 or stride <= 0:
+                raise ValueError(
+                    f"kernel={kernel} and stride={stride} must be positive"
+                )
+            if kernel < stride:
+                raise ValueError(
+                    f"kernel={kernel} must be >= stride={stride} (no info loss)"
+                )
+        elif (kernel is None) != (stride is None):
             raise ValueError(
-                f"kernel={kernel} and stride={stride} must be positive"
+                "kernel and stride must both be set or both be None (auto)"
             )
-        if kernel < stride:
-            raise ValueError(
-                f"kernel={kernel} must be >= stride={stride} (no info loss)"
-            )
+        if target_tokens < 8:
+            raise ValueError(f"target_tokens={target_tokens} too small (>= 8)")
+        if batch_size < 1:
+            raise ValueError(f"batch_size={batch_size} must be >= 1")
+
         self.d_model = d_model
         self.n_heads = n_heads
         self.n_layers = n_layers
-        self.kernel = kernel
-        self.stride = stride
+        self.kernel = kernel  # may be None until fit()
+        self.stride = stride  # may be None until fit()
+        self.target_tokens = target_tokens
         self.dropout = dropout
         self.epochs = epochs
         self.lr = lr
         self.weight_decay = weight_decay
+        self.batch_size = batch_size
+        self.normalize = normalize
         self.device = device
         self.n_channels: int | None = None
         self.classes_: np.ndarray = np.array([])
         self._n_classes = 0
         self._train_n_tokens: int = 0
+        # Normalization stats (per channel), set in fit() if normalize=True
+        self._mean: np.ndarray | None = None
+        self._std: np.ndarray | None = None
         self.model: nn.Module | None = None
+
+    @staticmethod
+    def _auto_kernel_stride(n_times: int, target_tokens: int) -> tuple[int, int]:
+        """Pick kernel/stride so n_tokens ≈ target_tokens, with 50% overlap.
+
+        Formula: stride = max(1, n_times // target_tokens),  kernel = stride * 2.
+        Edge cases:
+        - n_times < 2*target_tokens → stride=1, kernel=2 (max resolution)
+        - n_times very large → cap target_tokens at 256 to avoid O(N²) blowup
+        """
+        target = min(max(target_tokens, 16), 256)
+        stride = max(1, n_times // target)
+        kernel = stride * 2
+        # If kernel exceeds n_times, fall back to whole-signal token
+        if kernel > n_times:
+            kernel = n_times
+            stride = max(1, n_times)
+        return kernel, stride
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> 'TransformerDecoder':
         if X.shape[0] != len(y):
@@ -231,6 +290,13 @@ class TransformerDecoder(Decoder):
             )
         n_samples, n_channels, n_times = X.shape
         self.n_channels = n_channels
+
+        # Auto-pick kernel/stride if not explicitly set
+        if self.kernel is None or self.stride is None:
+            self.kernel, self.stride = self._auto_kernel_stride(
+                n_times, self.target_tokens
+            )
+
         self._train_n_tokens = (n_times - self.kernel) // self.stride + 1
         classes, y_idx = np.unique(y, return_inverse=True)
         if len(classes) < 2:
@@ -239,6 +305,19 @@ class TransformerDecoder(Decoder):
             )
         self.classes_ = classes
         self._n_classes = len(classes)
+
+        # Compute per-channel z-score stats from training data
+        # X shape: (n_samples, n_channels, n_times)
+        # mean/std shape: (1, n_channels, 1) — broadcast over samples & time
+        if self.normalize:
+            self._mean = X.mean(axis=(0, 2), keepdims=True).astype(np.float32)
+            self._std = X.std(axis=(0, 2), keepdims=True).astype(np.float32)
+            # Guard against zero-variance channels
+            self._std = np.where(self._std < 1e-8, 1.0, self._std)
+            X_norm = (X - self._mean) / self._std
+        else:
+            X_norm = X
+
         self.model = _EEGTransformer(
             n_channels=n_channels, n_classes=self._n_classes,
             d_model=self.d_model, n_heads=self.n_heads, n_layers=self.n_layers,
@@ -247,14 +326,25 @@ class TransformerDecoder(Decoder):
         opt = optim.AdamW(self.model.parameters(), lr=self.lr,
                           weight_decay=self.weight_decay)
         criterion = nn.CrossEntropyLoss()
-        Xt = torch.tensor(X, dtype=torch.float32, device=self.device)
+
+        Xt = torch.tensor(X_norm, dtype=torch.float32, device=self.device)
         yt = torch.tensor(y_idx, dtype=torch.long, device=self.device)
+
+        # Mini-batch training via simple index shuffling
+        # (Avoid DataLoader overhead — data is already on device)
+        bs = min(self.batch_size, n_samples)
+        n_batches = (n_samples + bs - 1) // bs
+
         self.model.train()
         for _ in range(self.epochs):
-            opt.zero_grad()
-            loss = criterion(self.model(Xt), yt)
-            loss.backward()
-            opt.step()
+            # Shuffle sample indices each epoch
+            perm = torch.randperm(n_samples, device=self.device)
+            for b in range(n_batches):
+                idx = perm[b * bs:(b + 1) * bs]
+                opt.zero_grad()
+                loss = criterion(self.model(Xt[idx]), yt[idx])
+                loss.backward()
+                opt.step()
         self.model.eval()
         return self
 
@@ -284,6 +374,9 @@ class TransformerDecoder(Decoder):
                 f"RoPE position extrapolation; accuracy may degrade",
                 stacklevel=2,
             )
+        # Apply training-set normalization (if it was used at fit time)
+        if self.normalize and self._mean is not None:
+            X = (X - self._mean) / self._std
         Xt = torch.tensor(X, dtype=torch.float32, device=self.device)
         self.model.eval()
         with torch.no_grad():
@@ -301,12 +394,17 @@ class TransformerDecoder(Decoder):
                 'n_layers': self.n_layers,
                 'kernel': self.kernel,
                 'stride': self.stride,
+                'target_tokens': self.target_tokens,
                 'dropout': self.dropout,
+                'batch_size': self.batch_size,
+                'normalize': self.normalize,
                 'n_channels': self.n_channels,
                 'n_classes': self._n_classes,
                 'train_n_tokens': self._train_n_tokens,
             },
             'classes_': self.classes_,
+            'mean': self._mean,
+            'std': self._std,
         }
         torch.save(state, path)
 
@@ -317,12 +415,18 @@ class TransformerDecoder(Decoder):
         obj = cls(
             d_model=cfg['d_model'], n_heads=cfg['n_heads'],
             n_layers=cfg['n_layers'], kernel=cfg['kernel'],
-            stride=cfg['stride'], dropout=cfg['dropout'],
+            stride=cfg['stride'],
+            target_tokens=cfg.get('target_tokens', 128),
+            dropout=cfg['dropout'],
+            batch_size=cfg.get('batch_size', 32),
+            normalize=cfg.get('normalize', True),
         )
         obj.n_channels = cfg['n_channels']
         obj._n_classes = cfg['n_classes']
         obj._train_n_tokens = cfg['train_n_tokens']
         obj.classes_ = state['classes_']
+        obj._mean = state.get('mean')
+        obj._std = state.get('std')
         obj.model = _EEGTransformer(
             n_channels=cfg['n_channels'], n_classes=cfg['n_classes'],
             d_model=cfg['d_model'], n_heads=cfg['n_heads'],
