@@ -1,0 +1,2 @@
+# Don't commit model checkpoints — they can be re-generated from the eval scripts
+reports/*/fold_*/ckpt.pt
