@@ -13,9 +13,11 @@
 │   │   ├── plans/                  # 学习计划文档
 │   │   └── projects/               # 配套小项目代码
 │   └── brain-computer-interface/   # 脑机接口学习路线
-│       ├── plans/                  # 学习计划文档
-│       └── projects/               # 配套小项目代码
-├── notes/                          # 通用笔记、复盘记录
+│       ├── plans/                  # 学习计划
+│       ├── notes/                  # 路线笔记（岗位 JD、简历、面试准备等）
+│       ├── exercises/              # 每周练习脚本
+│       └── package/                # 主项目 bci 包
+├── notes/                          # 通用笔记、复盘记录（与具体路线无关）
 └── AGENTS.md                      # 本文件
 ```
 
