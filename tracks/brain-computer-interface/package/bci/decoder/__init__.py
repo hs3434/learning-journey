@@ -91,6 +91,14 @@ class _TransformerDecoder:
         return TransformerDecoder(**kw)
 
 
+@register('transformer_bert')
+class _TransformerBertDecoder:
+    @staticmethod
+    def create(**kw):
+        from bci.decoder.transformer_bert import TransformerBertDecoder
+        return TransformerBertDecoder(**kw)
+
+
 # ----------------------------------------------------------------
 # Top-level API
 # ----------------------------------------------------------------

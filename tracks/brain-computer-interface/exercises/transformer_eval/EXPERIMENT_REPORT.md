@@ -178,9 +178,61 @@ exercises/transformer_eval/
         └── summary.json        # Multi-length results
 ```
 
-## 6. Next Steps (Unresolved)
+## 6. Analysis: Optimal Window Length ↔ Training Data Length Distribution
+
+### Observation — Distribution Confound
+
+The "optimal window length" finding (§4, L=85 gives +3.4pp) has a **built-in confound**: the pyramid data augmentation distribution is heavily skewed toward short windows.
+
+| Window Length L | Slices/trial | % of training data |
+|----------------|-------------|-------------------|
+| 106            | 1           | 1.7%              |
+| 100            | 2           | 3.4%              |
+| 95             | 4           | 6.9%              |
+| 90             | 8           | **13.8%**         |
+| 85             | 16          | **27.6%**         |
+| 80             | 27          | **46.6%**         |
+| **Total**      | **58**      | **100%**          |
+
+- **L=80–85 accounts for 74% of all training slices**
+- Every epoch, the model sees short windows ~27× more often than full-length windows
+- This is equivalent to training with **heavily imbalanced "effective steps"** per length class
+
+### Possible Interpretations
+
+| Interpretation | Explanation | Evidence |
+|---------------|-------------|----------|
+| **① SNR hypothesis** (original) | ERP peaks (N100/P200) live at 100–300ms; short windows cut baseline + decay noise → higher SNR | single_random at L=85 also rises (not pure ensemble) |
+| **② Distribution bias** (this analysis) | Model simply got more practice on short windows → better at what it saw most | L=80 (46.6% of training) ties with L=85; L=106 (1.7%) worst |
+| **③ Both** (most likely) | Short windows have better SNR *and* the model overfits to the augmented distribution | Need disentanglement experiment |
+
+### Disentanglement Experiment (Proposed)
+
+A single-variable ablation: **equalize slice count per length** in the pyramid bucket.
+
+```
+# Current (biased):
+buckets = {106:1, 100:2, 95:4, 90:8, 85:16, 80:27}  # 58 total
+
+# Proposed (balanced):
+buckets = {106:27, 100:27, 95:27, 90:27, 85:27, 80:27}  # 162 total
+# Each length gives exactly 27 slices/trial → each length seen equally often
+```
+
+Alternatively, a cleaner test:
+1. **Fixed-length training**: Train 6 separate models, each at a *single* fixed window length (L∈{106,100,95,90,85,80}), no pyramid augmentation
+2. Each model sees identical per-length training data → **pure window length effect**
+3. If L=85 still wins → SNR hypothesis confirmed
+4. If L=106 (with enough data) closes the gap → distribution bias was the confound
+
+### Takeaway
+
+**The "optimal window" is not an absolute property of the data — it's a joint property of the data AND the training distribution.** This is important methodology: when augmentations change the length distribution of training samples, test-time window tuning can't be cleanly attributed to "better window = better signal." Always check whether the distribution of training samples is skewed toward the allegedly optimal test condition.
+
+## 7. Next Steps (Unresolved)
 
 Pending user selection:
 - **E**: Fix L=85, continue tuning Transformer architecture
 - **F**: Switch to BNCI 2014-001 (motor imagery, larger dataset)
 - **G** ✅: Archive this report, move on
+- **H (proposed)**: Disentangle window-length effect via balanced augmentation or fixed-length training
