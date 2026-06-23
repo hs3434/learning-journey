@@ -10,7 +10,6 @@
 ## 个人简介
 
 3 年生物信息工程化经验，深耕**科研代码工程化、自动化 Pipeline、Linux 服务端**等方向。
-自主完成完整的 **BCI 信号处理与解码系统**（Python + PyQt6 + MNE + PyTorch），覆盖数据加载、预处理、Epoch 切分、**6 种解码器**（LDA/SSVEP/FBCCA/CSP/CNN/Transformer-GPT+Transformer-BERT），基于 MVP 架构的 PyQt6 离线分析 GUI。
 擅长将科研代码模块化、抽象框架，并具备完整的服务端运维与网络栈知识。
 
 ---
@@ -19,26 +18,29 @@
 
 | 类别 | 技能 |
 |------|------|
-| **核心语言** | Python（3 年深度使用）、C/C++、R、MATLAB（可读写） |
+| **核心语言** | Python、R、Linux shell（3 年深度使用）、C/C++、MATLAB |
 | **科学计算** | NumPy、SciPy、Pandas、scikit-learn |
 | **EEG / BCI** | MNE-Python（Raw/Epochs/Evoked、ICA、ERD/ERS、时频）、SSVEP（CCA/FBCCA）、**CSP+LDA**、MI、P300、Transformer（GPT 因果 / BERT 双向） |
 | **信号处理** | IIR/FIR 滤波（Butterworth、Notch）、FFT/Welch PSD、STFT、小波、ICA 去伪迹 |
-| **机器/深度学习** | PyTorch、CNN、Transformer（含 RoPE、因果注意力）、LDA、PCA、CSP、交叉验证 |
+| **机器/深度学习** | PyTorch、CNN、Transformer（含 RoPE、因果注意力）、常见机器学习算法、交叉验证 |
 | **GUI 开发** | PyQt6、QThread 异步、Matplotlib 嵌入、信号槽、自定义控件 |
 | **工程化** | 模块化设计、dataclass + YAML 配置、pytest、mypy/pyright、uv/pip、Docker |
 | **服务端 / 网络** | Linux、Nginx、Django、TCP/IP、代理、MinIO、MySQL、云原生 |
-| **协作工具** | Git、Snakemake、Jinja2、Sphinx |
+| **协作工具** | Git、Snakemake |
 | **证书 / 语言** | CET-4、普通话二级乙、C1 驾驶证 |
 
 ---
 
 ## 项目经验
 
-### 🧠 BCI 信号处理与解码系统（个人项目）
+### 🧠 BCI 信号处理与解码系统（个人demo项目）
 
 > Python + PyQt6 + MNE-Python + PyTorch + scikit-learn ｜ MVP 架构 + 模块化 + 128 个测试
 
 完整的脑电信号处理与 BCI 解码工具，覆盖**离线分析** Pipeline（Load → Preprocess → Epoch → Decode），6 种解码器（含 GPT/BERT Transformer 消融），MVP 架构 GUI。对应岗位要求的"数据处理工具设计开发 / Pipeline 工程化 / GUI 可视化"。
+
+- 详细介绍：[hs3434.github.io/2025/06/08/eeg-signal-processing-toolchain](https://hs3434.github.io/2025/06/08/eeg-signal-processing-toolchain/)
+- Transformer 在 EEG 解码中的研究笔记：[hs3434.github.io/2025/06/08/transformer-eeg-decoding](https://hs3434.github.io/2025/06/08/transformer-eeg-decoding/)
 
 **核心模块**
 
@@ -58,7 +60,7 @@
 
 - 4 步骤可视化进度条（Load → Preprocess → Epoch → Decode），`BatchTab`（view）只负责控件与信号，通过 `IBatchView` 接口全部委托给 `BatchPresenter`（controller）
 - 后台执行：`BatchWorker`（QObject）在 `QThread` 中运行，主线程不阻塞；worker 工厂可注入便于测试
-- 波形 / Welch 频谱 / `mne.plot_topomap` 地形图可视化
+- 波形 / Welch 频谱可视化；含 `mne.viz.plot_topomap` 头皮地形图组件
 - 多 Run Session 自动识别（regex 匹配 `S001R\d+.edf`）、多选对话框
 - 中文字体自动检测（WenQuanYi / Noto CJK / SimHei）
 
@@ -68,18 +70,19 @@
 - `pyright` 类型检查 + `uv` + `pyproject.toml` 现代包管理
 - dataclass + YAML 配置体系，含 `validate()` 和 `to_yaml/from_yaml`
 
-**实验**：在 PhysioNet EEGBCI 运动想象数据与 MNE Sample 听视觉 ERP 数据上完成 **GPT vs BERT 消融**：基线 0.806 → +金字塔增强 0.844 → +双向+`[CLS]` 0.865 → +最优窗口 L=85 **0.878**；CNN 基线 0.944。含数据增强、多长度评估、自动出图 (`transformer_eval/`)。
+**实验**：在 PhysioNet EEGBCI 运动想象数据与 MNE Sample 听视觉 ERP 数据上完成 **GPT vs BERT 消融**：基线 0.806 → +金字塔增强 0.844 → +双向+`[CLS]` 0.865 → +最优窗口 L=85 **0.878**；CNN 基线 0.944。含数据增强、多长度评估、自动出图。
 
 ---
 
 ### 🧬 基于 Snakemake 的数据分析工作流框架（在职项目）
 
-> 上海欧易生物 ｜ Python ｜ 框架级抽象
+> 解螺旋 ｜ Python ｜ 框架级抽象
 
 - **问题**：Snakemake 的 rule 语法是静态文本，模块无法随意拼接
 - **方案**：抛弃 rule DSL，直接调用其内部接口，**通过代码动态生成 rule 单元**，规范输入输出类型后，任意两个模块即可像积木拼接
 - **价值**：把"科研代码模块化、流程随意组合"做到框架级——这正是 BCI 岗位 "**将科研代码（MATLAB/Python）工程化与模块化**" 的核心诉求
 
+- 详细介绍：[hs3434.github.io/2025/06/08/rnaseq-pipeline-engineering](https://hs3434.github.io/2025/06/08/rnaseq-pipeline-engineering/)
 ---
 
 ### ☁️ 欧易云生信平台（在职项目）
@@ -87,7 +90,7 @@
 > 上海欧易生物 ｜ R / Python / Docker / 云原生
 
 将业务分析流程容器化、云平台化，提供云生信工具技术支持。
-线上成果：[欧易云平台](https://cloud.oebiotech.com/#/home)。
+线上成果：[cloud.oebiotech.com](https://cloud.oebiotech.com/#/home)。
 
 ---
 
@@ -100,7 +103,7 @@
 
 ## 工作经历
 
-### 上海尤里卡信息科技有限公司 ｜ 生物信息工程师 ｜ 2025.04 - 至今
+### 解螺旋（上海）科技有限公司 ｜ 生物信息工程师 ｜ 2025.04 - 至今
 
 - 将医学转录组业务开发为**自动化分析流程**
 - 在服务器运维部署、代码开发、算法等方面为团队提供技术支持
