@@ -81,8 +81,8 @@
 - **问题**：Snakemake 的 rule 语法是静态文本，模块无法随意拼接
 - **方案**：抛弃 rule DSL，直接调用其内部接口，**通过代码动态生成 rule 单元**，规范输入输出类型后，任意两个模块即可像积木拼接
 - **价值**：把"科研代码模块化、流程随意组合"做到框架级——这正是 BCI 岗位 "**将科研代码（MATLAB/Python）工程化与模块化**" 的核心诉求
-
 - 详细介绍：[hs3434.github.io/2025/06/08/rnaseq-pipeline-engineering](https://hs3434.github.io/2025/06/08/rnaseq-pipeline-engineering/)
+
 ---
 
 ### ☁️ 欧易云生信平台（在职项目）
