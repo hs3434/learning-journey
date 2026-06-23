@@ -108,8 +108,8 @@
 
 - **S**：自学 BCI 后需要将分散的信号处理/解码代码整合为可用工具
 - **T**：设计一个从原始数据到解码结果的完整 Pipeline
-- **A**：模块化设计（loader/preprocessor/epocher/decoder），dataclass + YAML 配置，插件式解码器注册，BCIPipeline 编排器含 StratifiedKFold CV，PyQt6 GUI 双模式（离线 + 实时流式）
-- **R**：支持 4 种 EEG 格式、5 种解码器（LDA/SSVEP/FBCCA/CNN/Transformer），实时流式推理，1400 LOC 测试
+- **A**：分层架构 — `source`（4 种 EEG 格式 reader）/`domain`（preprocessor + epocher + dataset + config 纯函数）/`application`（PipelineSession 编排 + MVP 控制层：BatchPresenter + IBatchView ABC + RunState 状态机）/`decoder`（6 种注册式解码器，懒加载）/`gui`（PyQt6 BatchTab）。dataclass + YAML 配置，`invalidate_from` 增量重执行。
+- **R**：支持 4 种 EEG 格式、6 种解码器（LDA/SSVEP/FBCCA/CSP/CNN/Transformer-GPT+Transformer-BERT），GPT→BERT 消融 0.878 acc，128 pytest 全过
 
 ### 故事 3：Transformer 解码器
 

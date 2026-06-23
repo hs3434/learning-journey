@@ -10,7 +10,7 @@
 ## 个人简介
 
 3 年生物信息工程化经验，深耕**科研代码工程化、自动化 Pipeline、Linux 服务端**等方向。
-自主完成完整的 **BCI 信号处理与解码系统**（Python + PyQt6 + MNE + PyTorch），覆盖数据加载、预处理、Epoch 切分、SSVEP/MI/Transformer 解码、Qt 双模式 GUI（离线分析 + 实时流式）。
+自主完成完整的 **BCI 信号处理与解码系统**（Python + PyQt6 + MNE + PyTorch），覆盖数据加载、预处理、Epoch 切分、**6 种解码器**（LDA/SSVEP/FBCCA/CSP/CNN/Transformer-GPT+Transformer-BERT），基于 MVP 架构的 PyQt6 离线分析 GUI。
 擅长将科研代码模块化、抽象框架，并具备完整的服务端运维与网络栈知识。
 
 ---
@@ -21,7 +21,7 @@
 |------|------|
 | **核心语言** | Python（3 年深度使用）、C/C++、R、MATLAB（可读写） |
 | **科学计算** | NumPy、SciPy、Pandas、scikit-learn |
-| **EEG / BCI** | MNE-Python（Raw/Epochs/Evoked、ICA、ERD/ERS、时频）、SSVEP（CCA/FBCCA）、MI、P300 |
+| **EEG / BCI** | MNE-Python（Raw/Epochs/Evoked、ICA、ERD/ERS、时频）、SSVEP（CCA/FBCCA）、**CSP+LDA**、MI、P300、Transformer（GPT 因果 / BERT 双向） |
 | **信号处理** | IIR/FIR 滤波（Butterworth、Notch）、FFT/Welch PSD、STFT、小波、ICA 去伪迹 |
 | **机器/深度学习** | PyTorch、CNN、Transformer（含 RoPE、因果注意力）、LDA、PCA、CSP、交叉验证 |
 | **GUI 开发** | PyQt6、QThread 异步、Matplotlib 嵌入、信号槽、自定义控件 |
@@ -36,38 +36,39 @@
 
 ### 🧠 BCI 信号处理与解码系统（个人项目）
 
-> Python + PyQt6 + MNE-Python + PyTorch + scikit-learn ｜ 模块化 + 单元测试
+> Python + PyQt6 + MNE-Python + PyTorch + scikit-learn ｜ MVP 架构 + 模块化 + 128 个测试
 
-完整的脑电信号处理与 BCI 解码工具，覆盖**离线分析**与**实时流式**双模式。项目结构清晰、可扩展，对应岗位要求的"数据处理工具设计开发 / Pipeline 工程化 / GUI 可视化"。
+完整的脑电信号处理与 BCI 解码工具，覆盖**离线分析** Pipeline（Load → Preprocess → Epoch → Decode），6 种解码器（含 GPT/BERT Transformer 消融），MVP 架构 GUI。对应岗位要求的"数据处理工具设计开发 / Pipeline 工程化 / GUI 可视化"。
 
 **核心模块**
 
-- `loader`：基于 MNE，支持 EDF / FIF / EEGLAB / BrainVision **4 种主流 EEG 格式**
-- `preprocessor`：带通/Notch 滤波、平均参考、坏导插值、**ICA 伪迹去除**（Infomax）
-- `epocher`：事件检测（stim 通道 + annotation 回退）、Epoch 切分、基线校正、幅值剔除
-- `processor`：**双引擎**——`OfflineProcessor`（`filtfilt` 零相位）+ `OnlineProcessor`（`lfilter` 因果滤波 + EMA 在线归一化，跨 chunk 保持状态）
-- `decoder`：**插件式注册机制**，统一 `fit/predict/save/load` 接口
+- `source`：`FileSource` 数据源抽象 + 注册式 reader 机制，支持 EDF / FIF / EEGLAB / BrainVision **4 种主流 EEG 格式**
+- `domain/preprocessor`：`Preprocessor` 类封装滤波（带通/Notch）、平均参考、坏导插值
+- `domain/epocher`：事件检测（stim 通道 + annotation 回退）、Epoch 切分、基线校正、幅值剔除
+- `decoder`：**插件式注册机制**，统一 `fit/predict/save/load` 接口，懒加载避免重型依赖
   - `LDA`：StandardScaler + PCA(0.95) + LDA Pipeline
   - `SSVEP / FBCCA`：CCA 多谐波模板 / 滤波器组加权
+  - `CSP`：MNE CSP → log-方差特征 → StandardScaler → LDA，MI-BCI 经典 pipeline
   - `CNN`：PyTorch 2D 卷积分类器
-  - `Transformer`：**GPT 风格因果 Transformer**，含 RoPE 旋转位置编码、Conv1D Token 嵌入、Pre-LN、AdamW，支持长度自适应推理
-- `streaming`：`SlidingWindow` 滚动缓冲 + 可配置决策间隔，实现窗口化在线推理
-- `pipeline`：`BCIPipeline` 编排 Load→Preprocess→Epoch→Decode→Save，含 `StratifiedKFold` 交叉验证
+  - `Transformer (GPT)`：**因果 Transformer**，含 RoPE 旋转位置编码、Conv1D Token 嵌入、Pre-LN、AdamW，支持长度自适应推理
+  - `Transformer (BERT)`：双向注意力 + `[CLS]` head，与 GPT 形成因果/双向消融对比
+- `application`：基于 `PipelineSession` 编排 Load→Preprocess→Epoch→Decode，含 `StratifiedKFold` 交叉验证与增量重执行（`invalidate_from` + `_first_invalid` 状态机）；MVP 架构 — `BatchPresenter`（controller）+ `IBatchView` ABC + `RunState` 状态机（IDLE/LOADING/LOADED/RUNNING/COMPLETE/ERROR），worker 工厂可注入便于测试
 
-**GUI（PyQt6 双 Tab）**
+**GUI（PyQt6 + MVP 架构）**
 
-- **离线分析**：4 步骤可视化进度条（Load→Preprocess→Epoch→Decode），`QThread` 后台执行不阻塞 UI
-- **实时查看**：Start/Pause/Stop 播放控制、**0.25×–100× 速度调节**、滑窗参数实时配置、可加载训练好的模型在线推理、实时波形 / Welch 频谱 / `mne.plot_topomap` 地形图
+- 4 步骤可视化进度条（Load → Preprocess → Epoch → Decode），`BatchTab`（view）只负责控件与信号，通过 `IBatchView` 接口全部委托给 `BatchPresenter`（controller）
+- 后台执行：`BatchWorker`（QObject）在 `QThread` 中运行，主线程不阻塞；worker 工厂可注入便于测试
+- 波形 / Welch 频谱 / `mne.plot_topomap` 地形图可视化
 - 多 Run Session 自动识别（regex 匹配 `S001R\d+.edf`）、多选对话框
 - 中文字体自动检测（WenQuanYi / Noto CJK / SimHei）
 
 **工程化**
 
-- **~1400 LOC pytest** 测试套件（decoder / processor / streaming / GUI worker / tabs / widgets）
-- `mypy` + `pyright` 双类型检查，`uv` + `pyproject.toml` 现代包管理
+- **128 pytest 测试全过**（decoder / pipeline / presenter / source readers / GUI worker / widgets），覆盖 6 种解码器、MVP 行为、worker 生命周期
+- `pyright` 类型检查 + `uv` + `pyproject.toml` 现代包管理
 - dataclass + YAML 配置体系，含 `validate()` 和 `to_yaml/from_yaml`
 
-**实验**：在 PhysioNet EEGBCI 运动想象数据与 MNE Sample 听视觉 ERP 数据上完成 LDA / Transformer 解码对比，含数据增强、多长度评估、自动出图 (`transformer_eval/`)。
+**实验**：在 PhysioNet EEGBCI 运动想象数据与 MNE Sample 听视觉 ERP 数据上完成 **GPT vs BERT 消融**：基线 0.806 → +金字塔增强 0.844 → +双向+`[CLS]` 0.865 → +最优窗口 L=85 **0.878**；CNN 基线 0.944。含数据增强、多长度评估、自动出图 (`transformer_eval/`)。
 
 ---
 
@@ -129,5 +130,5 @@
 ## 自我评价
 
 - **强工程化思维**：3 年将科研代码 → 自动化流程 → 平台化的实战经验，恰好对应 BCI 岗位"科研 pipeline 向工程系统转化"的核心职责
-- **跨领域学习力**：从生物信息独立迁移到 BCI，8 周内产出完整可演示工具，覆盖信号处理、解码模型、Qt GUI、实时流处理
+- **跨领域学习力**：从生物信息独立迁移到 BCI，8 周内产出完整可演示工具，覆盖信号处理、6 种解码模型、MVP Qt GUI、PyTorch Transformer 消融
 - **底层视角**：熟悉 Linux / 网络协议 / 容器，能独立完成部署与运维，可承担系统级工作

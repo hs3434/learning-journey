@@ -192,8 +192,8 @@ CSP 核心思想：
 
 - **S**：自学 BCI 后有 EEG 信号处理和解码的知识点，但分散不成体系
 - **T**：搭一个从原始数据到解码结果的完整工具
-- **A**：模块化设计 9 个子模块，PyQt6 双模式 GUI（离线+实时流式），实现 GPT/BERT 两种 Transformer 并对比消融
-- **R**：支持 4 种格式 5 种解码器，BERT 比 GPT 高 2pp，整体 0.878 acc
+- **A**：分层架构 9 个子模块（source/domain/application/decoder/gui），MVP 架构 PyQt6 BatchTab，实现 GPT/BERT 两种 Transformer 并对比消融（CSP+LDA 作为经典 MI baseline）
+- **R**：支持 4 种格式 6 种解码器，BERT 比 GPT 高 7pp（0.806→0.878），整体 0.878 acc vs CNN 0.944 baseline
 
 ### 故事 3：helix 后端服务
 
