@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: config-demo
+  labels:
+    app: config-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: config-demo
+  template:
+    metadata:
+      labels:
+        app: config-demo
+    spec:
+      containers:
+      - name: app
+        image: fastapi-app:v1    # 用 Day 4 构建的镜像
+        ports:
+        - containerPort: 8000
+        env:
+        # 单个 env 注入
+        - name: APP_NAME
+          value: "k8s-config-demo"
+        envFrom:
+        # 整 ConfigMap 注入（所有 key 变成环境变量）
+        - configMapRef:
+            name: app-config
+        # 整 Secret 注入
+        - secretRef:
+            name: db-secret
+        volumeMounts:
+        # 挂载 ConfigMap 为文件
+        - name: config-vol
+          mountPath: /etc/config
+        # 挂载 Secret 为文件
+        - name: secret-vol
+          mountPath: /etc/secret
+          readOnly: true
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "250m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+      volumes:
+      - name: config-vol
+        configMap:
+          name: app-config
+      - name: secret-vol
+        secret:
+          secretName: db-secret

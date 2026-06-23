@@ -1,0 +1,35 @@
+# Day 6: ConfigMap（从文件创建）
+# 用法：kubectl apply -f day6_configmap.yaml
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  labels:
+    app: config-demo
+data:
+  # 单个 key-value
+  LOG_LEVEL: "info"
+  APP_ENV: "production"
+  MAX_WORKERS: "4"
+  MODEL_NAME: "Qwen2.5-7B-Instruct"
+
+  # 整段配置（用 | 表示多行字面量）
+  app.yaml: |
+    server:
+      host: 0.0.0.0
+      port: 8000
+      workers: 4
+    database:
+      host: postgres
+      port: 5432
+      pool_size: 10
+    cache:
+      host: redis
+      port: 6379
+      ttl: 300
+
+---
+# 也可以从 --from-file=app.yaml 加载
+# kubectl create configmap app-config --from-file=app.yaml
+# 此时文件名成为 key，内容成为 value

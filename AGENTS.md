@@ -12,11 +12,16 @@
 │   ├── js-opencode/                # JS/TS/Effect/OpenCode 学习路线
 │   │   ├── plans/                  # 学习计划文档
 │   │   └── projects/               # 配套小项目代码
-│   └── brain-computer-interface/   # 脑机接口学习路线
+│   ├── brain-computer-interface/   # 脑机接口学习路线
+│   │   ├── plans/                  # 学习计划
+│   │   ├── notes/                  # 路线笔记（岗位 JD、简历、面试准备等）
+│   │   ├── exercises/              # 每周练习脚本
+│   │   └── package/                # 主项目 bci 包
+│   └── amd-rocm-python-backend/    # AMD ROCm Python 后端学习路线
 │       ├── plans/                  # 学习计划
-│       ├── notes/                  # 路线笔记（岗位 JD、简历、面试准备等）
+│       ├── notes/                  # 路线笔记
 │       ├── exercises/              # 每周练习脚本
-│       └── package/                # 主项目 bci 包
+│       └── projects/               # 配套小项目代码
 ├── notes/                          # 通用笔记、复盘记录（与具体路线无关）
 └── AGENTS.md                      # 本文件
 ```
@@ -27,6 +32,7 @@
 |------|------|----------|
 | `tracks/js-opencode/` | JS/TS/Node/Effect/OpenCode 学习 | `plans/learning-plan-v2.md` |
 | `tracks/brain-computer-interface/` | BCI 软件工程师（Python/Qt/信号处理） | `plans/learning-plan-bci.md` |
+| `tracks/amd-rocm-python-backend/` | AMD ROCm Python 后端工程师（K8s + LLM 推理） | `plans/learning-plan-amd-rocm.md` |
 
 ## 开发环境
 
@@ -48,6 +54,12 @@
 - pnpm（OpenCode monorepo 使用 pnpm workspace）
 - TypeScript 5.x
 
+**amd-rocm-python-backend 路线**：
+- Python ≥ 3.11
+- [uv](https://docs.astral.sh/uv/) 包管理器
+- Docker + minikube（K8s 本地）
+- Node.js 20+（React 前端练习）
+
 ## 常用命令
 
 ```bash
@@ -63,6 +75,11 @@ uv run bci --gui                        # 启动 GUI
 # JS 路线
 cd tracks/js-opencode/projects/week-00-js-reinforcement
 npm install && npm run dev
+
+# AMD ROCm 路线
+cd tracks/amd-rocm-python-backend
+minikube start                          # 启动本地 K8s
+docker run -p 8000:8000 llm-inference:latest  # 运行 LLM 推理服务
 ```
 
 ## 复盘格式（每周结束填写）
