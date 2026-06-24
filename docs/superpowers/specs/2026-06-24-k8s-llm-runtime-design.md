@@ -870,13 +870,13 @@ Router 启动时 `helm list -n llm-models -o json` → 重建 `MODELS_LOADED` �
 
 ### YAGNI 边界
 
-| 不做 | 何时再做 |
-|---|---|
-| OpenTelemetry 分布式追踪 | Phase 2 |
-| 鉴权（OAuth2 / API Key）| 上线时在 ingress 层加 |
-| 流式响应（SSE）| 用户提需求时 |
-| 多模态（vLLM vision）| 模型需要时 |
-| Web UI | 不做（FastAPI 自动 Swagger UI 已够）|
+| 不做 | 何时再做 | 备注 |
+|---|---|---|
+| OpenTelemetry 分布式追踪 | v1.1（Phase 2）| 当前 structlog JSON + `request_id` 已够定位 |
+| 鉴权（OAuth2 / API Key）| 上线时 | 部署在 ingress 层加 OAuth2 Proxy |
+| **流式响应（SSE）** | **v1.1** | `ChatRequest.stream` 字段已预留。v1.1 加：`StreamingResponse` + `httpx.stream()` + vLLM `--enable-streaming` |
+| 多模态（vLLM vision）| 模型需要时 | vLLM 0.5+ 原生支持 |
+| Web UI | 不做 | FastAPI 自动 Swagger UI 已够 |
 
 ---
 
