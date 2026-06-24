@@ -308,24 +308,29 @@ class VLLMInferenceOperator:
 ### Layer 3 — `model.py`：`ModelOperator`（高层）[核心]
 
 ```python
-@dataclass
-class ChatMessage:
+from pydantic import BaseModel, ConfigDict
+
+
+class ChatMessage(BaseModel):
     role: Literal["system", "user", "assistant"]
     content: str
 
 
-@dataclass
-class ChatRequest:
-    model: str                   # 用户用的别名，如 "qwen-7b"
+class ChatRequest(BaseModel):
+    model: str                          # 用户用的别名，如 "qwen-7b"
     messages: list[ChatMessage]
     temperature: float = 1.0
     max_tokens: int = 1024
     stream: bool = False
 
 
-@dataclass
-class ChatResponse:
+class ChatResponse(BaseModel):
+    # 透传 vLLM / OpenAI 的所有字段，未声明字段宽松放行
+    model_config = ConfigDict(extra="allow")
+
     id: str
+    object: str = "chat.completion"
+    created: int
     model: str
     choices: list[dict]
     usage: dict
@@ -374,11 +379,11 @@ async def chat(self, req):
     async with httpx.AsyncClient() as client:
         r = await client.post(
             f"{status.endpoint}/v1/chat/completions",
-            json=req.to_dict(),
+            json=req.model_dump(exclude_none=True),
             timeout=300.0,
         )
         r.raise_for_status()
-        return ChatResponse.from_dict(r.json())
+        return ChatResponse.model_validate(r.json())
 ```
 
 ### `lock.py`：`K8sLeaseLock`
