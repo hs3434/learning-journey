@@ -51,7 +51,7 @@
 
 - 6 周学习路线产出：PyQt 实时 GUI + CNN 时空解码器（PyTorch，可选）
 - 模块化信号处理 pipeline（滤波 / ICA / 时频），服务端 FastAPI 暴露
-- 详见 BCI 路线简历 [github.com/hs3434/learning-journey](https://github.com/hs3434/learning-journey/blob/main/tracks/brain-computer-interface/notes/resume.md)
+- **仓库**：[github.com/hs3434/bci-pipeline-demo](https://github.com/hs3434/bci-pipeline-demo)
 
 ### 基于 Snakemake 的数据分析工作流框架
 

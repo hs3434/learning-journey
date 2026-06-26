@@ -111,7 +111,7 @@
 
 - 端到端时空卷积解码 EEG 信号
 - PyQt 实时 GUI + FastAPI 暴露
-- 详见 BCI 路线简历 [github.com/hs3434/learning-journey](https://github.com/hs3434/learning-journey/blob/main/tracks/brain-computer-interface/notes/resume.md)
+- **仓库**：[github.com/hs3434/bci-pipeline-demo](https://github.com/hs3434/bci-pipeline-demo)
 
 ---
 
