@@ -22,7 +22,7 @@
 
 - Python 3.11+（asyncio, type hints, Pydantic, httpx async）
 - FastAPI（OpenAPI / dependency injection / lifespan）
-- 测试：pytest, pytest-asyncio, 88% coverage
+- 测试：pytest, pytest-asyncio
 
 ### 容器与编排
 
