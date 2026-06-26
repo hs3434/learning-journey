@@ -45,13 +45,13 @@
 - **关键决策**：K8s Lease 分布式锁防 Router 多副本并发部署；ConfigMap 注入 aliases 避免镜像 rebuild
 - **可观测性**：Prometheus 业务级 metrics（`chat_completions_duration_seconds` 等）+ structlog JSON 日志
 - **质量**：31 commits / 90 tests pass / coverage 88% / ruff + mypy strict + helm-lint clean
-- **仓库**：`/work/run/projects/bio-24/my_projects/k8s-llm-runtime/`  ·  v0.1.0 tagged
+- **仓库**：[github.com/hs3434/k8s-llm-runtime](https://github.com/hs3434/k8s-llm-runtime)  ·  v0.1.0 tagged
 
 ### 脑机接口实时信号处理与解码软件
 
 - 6 周学习路线产出：PyQt 实时 GUI + CNN 时空解码器（PyTorch，可选）
 - 模块化信号处理 pipeline（滤波 / ICA / 时频），服务端 FastAPI 暴露
-- 详见 `tracks/brain-computer-interface/notes/resume.md`
+- 详见 BCI 路线简历 [github.com/hs3434/bci-pipeline-demo](https://github.com/hs3434/bci-pipeline-demo)
 
 ### 基于 Snakemake 的数据分析工作流框架
 
