@@ -16,34 +16,30 @@
 
 ---
 
-## 求职技能（按岗位匹配排序，4 层）
+## 求职技能
 
 ### 后端核心
-
-- Python 3.11+（asyncio, type hints, Pydantic, httpx async）
-- FastAPI（OpenAPI / dependency injection / lifespan）
-- 测试：pytest, pytest-asyncio
+- Python 3.11+
+- FastAPI
+- pytest
 
 ### 容器与编排
-
-- Docker（multi-stage 构建，Alpine 镜像优化）
-- Kubernetes（Pod / Service / Deployment / StatefulSet / ConfigMap / RBAC）
-- Helm chart（values 模板化，helm install/upgrade/uninstall，CI lint clean）
-- 镜像仓库：registry.k8s.io / docker.io / ghcr.io / nvcr.io（国内 DaoCloud 镜像加速）
+- Docker
+- Kubernetes
+- Helm
+- 镜像仓库管理（DaoCloud 镜像加速）
 
 ### GPU / LLM 生态
-
-- vLLM（OpenAI 兼容 API，推理服务）
-- AMD ROCm 基础（HSA / HIP 概念，amd.com/gpu 资源调度）
-- PyTorch（CNN 时空解码器 / Transformer）
-- Hugging Face（transformers 库，tokenizer）
+- vLLM
+- AMD ROCm
+- PyTorch
+- Hugging Face
 
 ### 可观测性与工具链
-
-- Prometheus（prometheus_client，histogram / counter / gauge）
-- structlog（JSON structured logging）
-- uv / ruff / mypy strict / GitHub Actions
-- Linux 服务端运维（systemd, Nginx, 端口/进程管理）
+- Prometheus
+- structlog
+- uv / ruff / mypy / GitHub Actions
+- Linux 运维
 
 ---
 
