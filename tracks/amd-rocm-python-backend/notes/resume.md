@@ -11,7 +11,7 @@
 
 3 年生物信息工程化经验，自学转型 K8s 后端栈。
 **容器化部署、资源调度、任务编排、GPU 推理服务**。
-最近 2 周自学 ROCm / K8s / Helm / FastAPI / Prometheus，独立完成 **k8s-llm-runtime**（K8s 上的 vLLM 模型服务网关），**v0.1.0 tagged，可现场跑 demo**。
+最近 2 周自学 ROCm / K8s / Helm / FastAPI / Prometheus，独立完成 [**k8s-llm-runtime**](https://github.com/hs3434/k8s-llm-runtime)（K8s 上的 vLLM 模型服务网关），**v0.1.0 tagged，可现场跑 demo**。
 熟悉 Snakemake 类 Argo Workflows 的 ML 平台抽象。
 
 ---
