@@ -79,7 +79,7 @@
 ## 技能
 
 - **编程**：C、C++、VB、R、Python（asyncio, type hints）、Matlab、SAS
-- **平台/工具**：Linux、Docker、k8s、Helm、FastAPI、Pydantic、httpx、Prometheus、Grafana、PyTorch、Office
+- **平台/工具**：Linux、Docker、k8s、Helm、FastAPI、Pydantic、Prometheus、PyTorch、Office
 - **证书/语言**：C1 驾驶证、CET-4、普通话二级乙等
 
 ## 优势
