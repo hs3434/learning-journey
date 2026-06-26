@@ -20,7 +20,7 @@
 ### 上海尤里卡信息科技有限公司 ｜ 生物信息工程师 ｜ 2025.04 - 至今
 
 1. **rnaseq**（项目主力）：基于 Snakemake 的 RNA-seq 自动化分析 pipeline，Docker / Apptainer 容器化，20 核并行；config.yaml 驱动配置；是公司 RNA-seq 业务自动化主线
-2. **helix**（Python 后端 API）：FastAPI + Click + Pydantic v2 实现的生物信息 API 服务，给 rnaseq pipeline 提供结果展示层；类型化 + 测试覆盖
+2. **helix**（Python 后端 API）：FastAPI + Click + Pydantic v2 实现的生物信息 API 服务，给 rnaseq pipeline 提供数据辅助接口；类型化 + 测试覆盖
 3. **服务端运维**：Linux 服务器日常维护，Nginx 反向代理，systemd 服务管理
 
 ### 上海欧易生物医学科技有限公司 ｜ 生物信息研发工程师 ｜ 2022.08 - 2024.07
@@ -57,6 +57,7 @@
 
 - **背景**：生物信息或数据分析的自动化流程通常使用 Snakemake 这类框架定义，但其上下游逻辑依赖静态的 rule 语法，无法实现模块的随意组合
 - **新框架功能**：摈弃 Snakemake 原有的 rule 语法，直接调用内部接口，通过代码动态生成 rule 单元。只要规范输入输出类型，任意两个适配模块即可像积木一样拼接
+- **详细博客**：[不满 Snakemake 的静态 rule？我用 Python 对象动态构建了一条 RNA-seq 流水线](https://hs3434.github.io/2025/06/08/rnaseq-pipeline-engineering/)
 
 ### Linux 系统维护
 

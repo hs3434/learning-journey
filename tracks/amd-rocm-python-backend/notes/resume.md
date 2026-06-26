@@ -87,6 +87,7 @@
 - 背景：Snakemake rule 语法无法实现模块随意组合
 - 设计：摈弃 rule 语法，直接调内部接口动态生成 rule，规范输入输出类型即可积木式拼接
 - 关联：JD 加分项"机器学习平台研发经验"——本项目是 ML 平台抽象的工程实践
+- **详细博客**：[不满 Snakemake 的静态 rule？我用 Python 对象动态构建了一条 RNA-seq 流水线](https://hs3434.github.io/2025/06/08/rnaseq-pipeline-engineering/)
 
 ### 脑机接口 CNN 解码器（PyTorch）—— 自学的demo项目
 
