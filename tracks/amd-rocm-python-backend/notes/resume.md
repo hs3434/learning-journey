@@ -14,6 +14,12 @@
 最近 2 周自学 ROCm / K8s / Helm / FastAPI / Prometheus，独立完成 [**k8s-llm-runtime**](https://github.com/hs3434/k8s-llm-runtime)（K8s 上的 vLLM 模型服务网关），**v0.1.0 tagged，可现场跑 demo**。
 熟悉 Snakemake 类 Argo Workflows 的 ML 平台抽象。
 
+## 技术博客
+
+- [Transformer 从入门到上手](https://hs3434.github.io/2025/03/03/transformer1/)
+- [GPT 风格 Transformer 解码 EEG：为什么、怎么做、踩了什么坑](https://hs3434.github.io/2025/06/08/transformer-eeg-decoding/)
+- [从零搭一套端到端 EEG 信号处理工具链](https://hs3434.github.io/2025/06/08/eeg-signal-processing-toolchain/)
+
 ---
 
 ## 求职技能（按岗位匹配排序）
@@ -21,17 +27,17 @@
 | 类别 | 技能 |
 |------|------|
 | **后端核心** | Python 3.11+、FastAPI、pytest |
-| **容器与编排** | Docker、Kubernetes、Helm、镜像仓库管理（DaoCloud 镜像加速） |
-| **GPU / LLM 生态** | vLLM、AMD ROCm、PyTorch、Hugging Face |
+| **容器与编排** | Docker、Kubernetes、Helm、镜像仓库管理 |
+| **GPU / LLM 生态** | vLLM、PyTorch、Hugging Face |
 | **可观测性** | Prometheus、structlog |
-| **工具链** | uv、ruff、mypy、GitHub Actions |
+| **工具链** | uv、mypy、GitHub Actions |
 | **运维** | Linux 运维 |
 
 ---
 
 ## 项目经验
 
-### k8s-llm-runtime：K8s 上的 vLLM 模型服务网关（v0.1.0 tagged）
+### k8s-llm-runtime：K8s 上的 vLLM 模型服务网关 - 自学demo项目
 
 **问题**（对应 JD 职责 1 + 3）：vLLM 模型部署需 GPU + 容器 + 路由，团队多人共享时模型管理复杂；研究/小团队想用 OpenAI 兼容 API 时门槛高。
 （直接对应 JD："大模型训练/推理 Workshop、教程、功能演示"）
@@ -77,19 +83,15 @@
 - 2 Helm charts（llm-inference + llm-router）
 
 **踩坑与修复**：
-- Service DNS 不匹配 bug：`--set fullnameOverride={release_name}` 修复
 - kind 节点国内镜像加速：containerdConfigPatches + DaoCloud mirror
-- 这些都写入 `docs/amd-interview-demo.md` 供现场参考
 
-**未来**（v1.1）：SSE 流式推理 / RBAC 收紧只读 / 真实 GPU 集群 e2e
-
-### 基于 Snakemake 的 ML 平台工作流框架（生信背景，类 Argo Workflows）
+### 基于 Snakemake 的 ML 平台工作流框架（生信背景）
 
 - 背景：Snakemake rule 语法无法实现模块随意组合
 - 设计：摈弃 rule 语法，直接调内部接口动态生成 rule，规范输入输出类型即可积木式拼接
 - 关联：JD 加分项"机器学习平台研发经验"——本项目是 ML 平台抽象的工程实践
 
-### 脑机接口 CNN 解码器（PyTorch）—— 6 周学习路线产出
+### 脑机接口 CNN 解码器（PyTorch）—— 自学的demo项目
 
 - 端到端时空卷积解码 EEG 信号
 - PyQt 实时 GUI + FastAPI 暴露
@@ -129,7 +131,7 @@
 
 ## 个人优势
 
-- **6 周自学 K8s 后端栈**：从零到 v0.1.0 tagged 项目，独立完成双 Helm chart + Python lib
+- **2 周自学 K8s 后端栈**：从零到 v0.1.0 tagged 项目，独立完成双 Helm chart + Python lib
 - **现场 demo 能力**：可自带电脑在 kind cluster 上跑通完整 LLM 推理流程（部署 → 路由 → chat completions → metrics）
-- **学习能力强**：3 年内从生物信息跨界到 K8s 后端，技术热情高
+- **学习能力强**：自学生物信息、算法、K8s 等多领域知识，独立完成项目
 - **3 年 Python 工程化经验**：从科研脚本到云平台工具的完整路径

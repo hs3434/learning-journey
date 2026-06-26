@@ -69,6 +69,12 @@
 - 工作中常涉及数据分析，熟悉常见方法：统计检验、PCA、普氏分析等
 - 自学深度学习，熟悉神经网络及 Transformer 架构
 
+## 技术博客
+
+- [Transformer 从入门到上手](https://hs3434.github.io/2025/03/03/transformer1/)
+- [GPT 风格 Transformer 解码 EEG：为什么、怎么做、踩了什么坑](https://hs3434.github.io/2025/06/08/transformer-eeg-decoding/)
+- [从零搭一套端到端 EEG 信号处理工具链](https://hs3434.github.io/2025/06/08/eeg-signal-processing-toolchain/)
+
 ## 技能
 
 - **编程**：C、C++、VB、R、Python（asyncio, type hints）、Matlab、SAS
