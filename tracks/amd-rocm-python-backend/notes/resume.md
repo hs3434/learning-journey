@@ -16,30 +16,16 @@
 
 ---
 
-## 求职技能
+## 求职技能（按岗位匹配排序）
 
-### 后端核心
-- Python 3.11+
-- FastAPI
-- pytest
-
-### 容器与编排
-- Docker
-- Kubernetes
-- Helm
-- 镜像仓库管理（DaoCloud 镜像加速）
-
-### GPU / LLM 生态
-- vLLM
-- AMD ROCm
-- PyTorch
-- Hugging Face
-
-### 可观测性与工具链
-- Prometheus
-- structlog
-- uv / ruff / mypy / GitHub Actions
-- Linux 运维
+| 类别 | 技能 |
+|------|------|
+| **后端核心** | Python 3.11+、FastAPI、pytest |
+| **容器与编排** | Docker、Kubernetes、Helm、镜像仓库管理（DaoCloud 镜像加速） |
+| **GPU / LLM 生态** | vLLM、AMD ROCm、PyTorch、Hugging Face |
+| **可观测性** | Prometheus、structlog |
+| **工具链** | uv、ruff、mypy、GitHub Actions |
+| **运维** | Linux 运维 |
 
 ---
 
