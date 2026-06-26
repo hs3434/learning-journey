@@ -11,8 +11,8 @@
 
 3 年生物信息工程化经验，自学转型 K8s 后端栈。
 **容器化部署、资源调度、任务编排、GPU 推理服务**。
-最近 2 周自学 ROCm / K8s / Helm / FastAPI / Prometheus，独立完成 [**k8s-llm-runtime**](https://github.com/hs3434/k8s-llm-runtime)（K8s 上的 vLLM 模型服务网关），**v0.1.0 tagged，可现场跑 demo**。
-熟悉 Snakemake 类 Argo Workflows 的 ML 平台抽象。
+最近 1 周自学 K8s / Helm，独立完成 [**k8s-llm-runtime**](https://github.com/hs3434/k8s-llm-runtime)（K8s 上的 vLLM 模型服务网关），**v0.1.0 tagged，可现场跑 demo**。
+熟悉 Snakemake 类 Workflows 的 ML 平台抽象。
 
 ## 技术博客
 
@@ -29,9 +29,9 @@
 | **后端核心** | Python 3.11+、FastAPI、pytest |
 | **容器与编排** | Docker、Kubernetes、Helm、镜像仓库管理 |
 | **GPU / LLM 生态** | vLLM、PyTorch、Hugging Face |
-| **可观测性** | Prometheus、structlog |
 | **工具链** | uv、mypy、GitHub Actions |
 | **运维** | Linux 运维 |
+| **数据库** | PostgreSQL、MySQL、Redis |
 
 ---
 
@@ -46,9 +46,7 @@
 - `charts/llm-inference/`：vLLM 负载 chart，**GPU vendor 切换仅靠 `values.yaml`**
   （amd.com/gpu / nvidia.com/gpu / none 三态，values 显式选择）
 - `charts/llm-router/`：FastAPI 网关 chart
-  - ConfigMap 注入 initContainer 加载兄弟 chart
   - RBAC 最小权限（Pod/Service/ConfigMap read+write + Lease）
-  - ServiceMonitor 可选启用（Service 0.0.0.0:9090/metrics）
 - `src/k8s_llm_runtime/`：3 层 lib 抽象
   - `K8sJobOperator`（低层，通用 Job 调度）
   - `VLLMInferenceOperator`（中层，helm CLI subprocess + GPU vendor）
@@ -69,7 +67,6 @@
    - `chat_completions_duration_seconds`（histogram，含 status code 标签）
    - `http_requests_total`（counter，按 method/route/status）
    - `models_loaded`（gauge，反映 in-memory state）
-   - ServiceMonitor 可选进 Grafana
 
 **GPU vendor 切换 demo**（对应 JD 加分 GPU 集群）：
 - values.yaml `gpu.vendor=amd|nvidia|none`
@@ -103,9 +100,9 @@
 
 ### 上海尤里卡信息科技有限公司 ｜ 生物信息工程师 ｜ 2025.04 - 至今
 
-- **Docker 部署**：业务代码 Docker 化（基于 snakemake + 自研框架）
+- **rnaseq**（项目主力）：基于 Snakemake 的 RNA-seq 自动化分析 pipeline，Docker / Apptainer 容器化，20 核并行；config.yaml 驱动配置；公司业务自动化主线
+- **helix**（Python 后端 API）：FastAPI + Click + Pydantic v2 实现的生物信息 API 服务，给 rnaseq pipeline 提供结果展示层；类型化 + 测试覆盖
 - **服务端运维**：Linux 服务器日常维护，Nginx 反向代理，systemd 服务管理
-- **云平台工具开发**：业务自动化流程 + 算法工具
 
 ### 上海欧易生物医学科技有限公司 ｜ 生物信息研发工程师 ｜ 2022.08 - 2024.07
 
@@ -131,7 +128,7 @@
 
 ## 个人优势
 
-- **2 周自学 K8s 后端栈**：从零到 v0.1.0 tagged 项目，独立完成双 Helm chart + Python lib
+- **1 周自学 K8s 后端栈**：从零到 v0.1.0 tagged 项目，独立完成双 Helm chart + Python lib
 - **现场 demo 能力**：可自带电脑在 kind cluster 上跑通完整 LLM 推理流程（部署 → 路由 → chat completions → metrics）
 - **学习能力强**：自学生物信息、算法、K8s 等多领域知识，独立完成项目
 - **3 年 Python 工程化经验**：从科研脚本到云平台工具的完整路径
