@@ -42,7 +42,7 @@
 **问题**（对应 JD 职责 1 + 3）：vLLM 模型部署需 GPU + 容器 + 路由，团队多人共享时模型管理复杂；研究/小团队想用 OpenAI 兼容 API 时门槛高。
 （直接对应 JD："大模型训练/推理 Workshop、教程、功能演示"）
 
-### 架构（双 chart + 三层 lib + 镜像优化）
+#### 架构（双 chart + 三层 lib + 镜像优化）
 
 - `charts/llm-inference/`：vLLM 负载 chart，**GPU vendor 切换仅靠 `values.yaml`**
   （amd.com/gpu / nvidia.com/gpu / none 三态，values 显式选择）
@@ -53,7 +53,7 @@
   - `VLLMInferenceOperator`（中层，helm CLI subprocess + GPU vendor）
   - `ModelOperator`（高层，OpenAI 兼容 + 自动部署）
 
-### 4 大技术亮点
+#### 4 大技术亮点
 
 1. **lib 三层分层抽象**（对应 JD 后端架构能力）
    - 上层 ModelOperator 只关心 load_model(alias) / unload_model(alias)
@@ -70,18 +70,18 @@
    - `http_requests_total`（counter，按 method/route/status）
    - `models_loaded`（gauge，反映 in-memory state）
 
-### GPU vendor 切换 demo（对应 JD 加分 GPU 集群）
+#### GPU vendor 切换 demo（对应 JD 加分 GPU 集群）
 - values.yaml `gpu.vendor=amd|nvidia|none`
 - AMD：amd.com/gpu 资源调度，ROCm vLLM 镜像
 - NVIDIA：nvidia.com/gpu 资源调度，CUDA vLLM 镜像
 - none：CPU only 模式（kind cluster 默认，本地开发用）
 
-### 质量保证
+#### 质量保证
 - 31 commits / 90 tests pass / coverage 88%
 - ruff + mypy strict + helm-lint 全 clean
 - 2 Helm charts（llm-inference + llm-router）
 
-### 踩坑与修复
+#### 踩坑与修复
 - kind 节点国内镜像加速：containerdConfigPatches + DaoCloud mirror
 
 ### 基于 Snakemake 的 ML 平台工作流框架（生信背景）
