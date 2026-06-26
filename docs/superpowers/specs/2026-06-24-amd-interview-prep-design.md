@@ -49,11 +49,12 @@
 
 | 维度 | 决策 | 理由 |
 |---|---|---|
-| 简历版本策略 | **两套：通用 + amd-rocm 专用** | 通用应对多向投递；专用强化 AMD 关键词 |
+| 简历版本策略 | **两套：通用 + amd-rocm 专用** | 通用应对多向投递；专用按 JD 定制 |
 | 通用 Resume.md 变化 | 加 2 个项目卡片（k8s-llm-runtime 主力 + BCI 轻提） | 用户已学完 BCI，应反映在通用简历 |
-| amd-rocm 专用 | 完全新建（沿用 BCI `resume.md` 模板） | BCI 模板 7.7KB 已成熟，复用结构 |
+| amd-rocm 专用 | **完全新建，按 JD 定制**（沿用 BCI `resume.md` 模板结构） | JD 硬性要求 K8s 实战 + 大模型项目 + 容器化；缺口分析点名 Snakemake 类 Argo Workflows；面试需现场跑 demo |
+| 定制依据 | `notes/job-requirements.md`（56 行）—— 5 项硬性 + 9 项加分 + 缺口优先级 | 用户明确要求"按招聘要求定制" |
 | 1-pager 风格 | **技术架构型**（4 大亮点） | 适配技术面试（非量化型 / 非踩坑型） |
-| 执行节奏 | **Approach 2 一次性**（不分阶段） | 用户选择，3-5h 一次产出 |
+| **执行节奏** | **分两阶段：① 简历先行 → ② 面试弹药** | 用户明确"先弄好简历其他的再说" |
 | 博客 | **不在本 spec 范围**（v0.2.0 可选） | 1-pager 是博客的素材源；v0.2.0 再扩写 |
 | 架构图格式 | Mermaid（.mmd） | GitHub/VSCode/1-pager 内联渲染 |
 | PDF 导出工具 | weasyprint（BCI 已用）| 复用 BCI `resume.css` 样式 |
@@ -130,7 +131,22 @@
 
 ---
 
-## ② amd-rocm 专用 resume.md（新建）
+## ② amd-rocm 专用 resume.md（按 JD 定制新建）
+
+### 定制依据（对照 `notes/job-requirements.md`）
+
+| JD 项 | 简历对应 | 强化点 |
+|---|---|---|
+| 🔴 硬性：Python 后端 2 年+ | 工作经历 + 技能栏 | 突出 3 年 Python + FastAPI 异步（不只 Django） |
+| 🔴 硬性：Docker/k8s 部署 | 技能栏 + k8s-llm-runtime 项目 | 强调 "独立部署 Python Web 到 K8s" 水平 |
+| 🔴 加分：AI/GPU 项目 | k8s-llm-runtime 项目 | 强调 vLLM + OpenAI 兼容 + Helm chart 部署 |
+| 🔴 加分：ML 平台 | Snakemake 框架 | 强调"类 Argo Workflows"——JD 自己点的类比 |
+| 🟡 加分：GPU 集群 | k8s-llm-runtime | 强调 GPU vendor 切换（amd/nvidia/none） |
+| 🟡 加分：Python 后端强化 | 技能栏 | 突出 FastAPI + async + Pydantic + httpx |
+| 🟢 加分：前端基础 | 不强提 | 简历不写（JD 优先级最低） |
+| 🟢 加分：数据库/中间件 | 不强提 | 简历不写（Week 3 后续补） |
+| 现场 demo | 个人优势 + 项目结尾 | "自带电脑可现场跑 kind cluster + LLM demo" |
+| 汇报线 | 不写 | 不写 Vincent Fang（避免太针对性） |
 
 ### 整体策略
 完全沿用 BCI `resume.md` 结构（7.7KB 模板已成熟），但内容替换为 AMD ROCm Python 后端工程师方向。
@@ -142,82 +158,158 @@
 - 电话：188-5665-3017
 - 邮箱：hs3434@foxmail.com
 - 个人网站：hs3434.github.io
-- 求职意向：**AMD ROCm Python 后端工程师**
+- 求职意向：**AMD ROCm Python 后端开发工程师**（ROCm Radeon Cloud 方向）
 
 ---
 
 ## 个人简介
 
-3 年生物信息工程化经验 + 自学 K8s 后端栈。
-专注**容器化部署、任务编排、GPU 推理服务网关**。
-熟悉 Python 异步、FastAPI、Helm、Prometheus、vLLM/ROCm。
+3 年生物信息工程化经验，自学转型 K8s 后端栈。
+专注**容器化部署、资源调度、任务编排、GPU 推理服务**。
+最近 6 周自学 ROCm / K8s / Helm / FastAPI / Prometheus，独立完成 **k8s-llm-runtime**（K8s 上的 vLLM 模型服务网关），**v0.1.0 tagged，可现场跑 demo**。
+熟悉 Snakemake 类 Argo Workflows 的 ML 平台抽象。
 
 ---
 
-## 求职技能（按岗位匹配排序）
+## 求职技能（按岗位匹配排序，4 层）
 
-| 类别 | 技能 |
-|------|------|
-| 后端 | Python（asyncio, type hints）, FastAPI, Pydantic, httpx |
-| 容器/平台 | Docker（multi-stage）, Kubernetes（Pod/Service/Deployment/RBAC）, Helm chart |
-| 推理/ML | vLLM, ROCm（HSA/ROCk）, PyTorch（CNN 时空解码器） |
-| 可观测性 | Prometheus（prometheus_client）, structlog, Grafana |
-| 工具链 | uv, ruff, mypy, pytest, GitHub Actions |
-| 生信（背景） | Snakemake, R, Linux 服务端 |
+### 后端核心（硬性 1）
+- Python 3.11+（asyncio, type hints, Pydantic, httpx async）
+- FastAPI（OpenAPI / dependency injection / lifespan）
+- 测试：pytest, pytest-asyncio, 88% coverage
+
+### 容器与编排（硬性 2）
+- Docker（multi-stage 构建，Alpine 镜像优化）
+- Kubernetes（Pod / Service / Deployment / StatefulSet / ConfigMap / RBAC）
+- Helm chart（values 模板化，helm install/upgrade/uninstall，CI lint clean）
+- 镜像仓库：registry.k8s.io / docker.io / ghcr.io / nvcr.io（国内 DaoCloud 镜像加速）
+
+### GPU / LLM 生态（加分 1）
+- vLLM（OpenAI 兼容 API，推理服务）
+- AMD ROCm 基础（HSA / HIP 概念，amd.com/gpu 资源调度）
+- PyTorch（CNN 时空解码器 / Transformer）
+- Hugging Face（transformers 库，tokenizer）
+
+### 可观测性与工具链
+- Prometheus（prometheus_client，histogram / counter / gauge）
+- structlog（JSON structured logging）
+- uv / ruff / mypy strict / GitHub Actions
+- Linux 服务端运维（systemd, Nginx, 端口/进程管理）
+
+---
 
 ## 项目经验
 
-### k8s-llm-runtime：K8s 上的 vLLM 模型服务网关
+### k8s-llm-runtime：K8s 上的 vLLM 模型服务网关（v0.1.0 tagged）
 
-[深度展开 8-12 行，强调 4 大技术亮点：分层抽象 / Helm ConfigMap 注入 / K8s Lease 锁 / Prometheus 业务 metrics]
+[深度展开 12-16 行，强调 4 大技术亮点 + GPU 关键词 + demo ready，见下方子节]
 
-### 脑机接口 CNN 解码器（PyTorch）
+### 基于 Snakemake 的 ML 平台工作流框架（生信背景，类 Argo Workflows）
 
-[2 行轻提：端到端时空卷积解码，详见 BCI 专用简历]
+- 背景：Snakemake rule 语法无法实现模块随意组合
+- 设计：摈弃 rule 语法，直接调内部接口动态生成 rule，规范输入输出类型即可积木式拼接
+- 关联：JD 加分项"机器学习平台研发经验"——本项目是 ML 平台抽象的工程实践
 
-### 基于 Snakemake 的生信工作流框架
+### 脑机接口 CNN 解码器（PyTorch）—— 6 周学习路线产出
 
-[2 行：动态 rule 生成的工程化抽象]
+- 端到端时空卷积解码 EEG 信号
+- PyQt 实时 GUI + FastAPI 暴露
+- 详见 BCI 专用简历 `tracks/brain-computer-interface/notes/resume.md`
+
+---
 
 ## 工作经历
 
-[欧易 + 尤里卡，突出"云平台 / 自动化 Pipeline / Docker 部署 / 服务器运维"]
+### 上海尤里卡信息科技有限公司 ｜ 生物信息工程师 ｜ 2025.04 - 至今
+- **Docker 部署**：业务代码 Docker 化（基于 snakemake + 自研框架）
+- **服务端运维**：Linux 服务器日常维护，Nginx 反向代理，systemd 服务管理
+- **云平台工具开发**：业务自动化流程 + 算法工具
+
+### 上海欧易生物医学科技有限公司 ｜ 生物信息研发工程师 ｜ 2022.08 - 2024.07
+- **云平台生信工具开发**：R / Python / Linux / Docker / 云原生
+- **业务自动化**：医学转录组业务流程自动化，模块化、可复用
+- **平台地址**：[cloud.oebiotech.com](https://cloud.oebiotech.com/#/home)
+
+---
 
 ## 教育背景
 
-[沿用通用]
+**西北农林科技大学** ｜ 植物科学与技术专业 ｜ 本科 ｜ 2018.09 - 2022.07
 
-## 优势
+- 毕业论文：基于逻辑斯蒂回归的小麦倒伏相关性状分析
+- 大创项目：根瘤菌接种对紫花苜蓿抗铜污染的影响（参与作者）
 
-[沿用通用 + 1 行"K8s 后端栈可立即上手 GPU 推理服务方向"]
+---
+
+## 个人优势
+
+- **6 周自学 K8s 后端栈**：从零到 v0.1.0 tagged 项目，独立完成双 Helm chart + Python lib
+- **现场 demo 能力**：可自带电脑在 kind cluster 上跑通完整 LLM 推理流程（部署 → 路由 → chat completions → metrics）
+- **学习能力强**：3 年内从生物信息跨界到 K8s 后端，技术热情高
+- **3 年 Python 工程化经验**：从科研脚本到云平台工具的完整路径
 ```
 
-### 关键内容：k8s-llm-runtime 深度展开
+### 关键内容：k8s-llm-runtime 深度展开（按 JD 关键词强化）
 
 ```markdown
-**问题**：vLLM 模型部署需 GPU + 容器 + 路由，研究/小团队想用 OpenAI 兼容 API 时门槛高
+**问题**（对应 JD 职责 1 + 3）：vLLM 模型部署需 GPU + 容器 + 路由，
+团队多人共享时模型管理复杂；研究/小团队想用 OpenAI 兼容 API 时门槛高。
+（直接对应 JD："大模型训练/推理 Workshop、教程、功能演示"）
 
-**架构**：双 chart + 三层 lib
-- `charts/llm-inference/`：vLLM 负载 chart，GPU vendor 切换仅靠 `values.yaml`
-- `charts/llm-router/`：FastAPI 网关，ConfigMap 注入 initContainer 加载兄弟 chart
-- `src/k8s_llm_runtime/`：3 层 lib 抽象（K8sJobOperator → VLLMInferenceOperator → ModelOperator）
+**架构**（双 chart + 三层 lib + 镜像优化）：
+- `charts/llm-inference/`：vLLM 负载 chart，**GPU vendor 切换仅靠 `values.yaml`**
+  （amd.com/gpu / nvidia.com/gpu / none 三态，values 显式选择）
+- `charts/llm-router/`：FastAPI 网关 chart
+  - ConfigMap 注入 initContainer 加载兄弟 chart
+  - RBAC 最小权限（Pod/Service/ConfigMap read+write + Lease）
+  - ServiceMonitor 可选启用（Service 0.0.0.0:9090/metrics）
+- `src/k8s_llm_runtime/`：3 层 lib 抽象
+  - `K8sJobOperator`（低层，通用 Job 调度）
+  - `VLLMInferenceOperator`（中层，helm CLI subprocess + GPU vendor）
+  - `ModelOperator`（高层，OpenAI 兼容 + 自动部署）
 
 **4 大技术亮点**：
-1. **分层抽象**：上层 ModelOperator 只关心"加载/卸载模型"；底层 Helm 细节封装在 VLLMInferenceOperator
-2. **Helm ConfigMap 注入**：aliases 通过 ConfigMap 动态注入，**避免每次新增模型都 rebuild 镜像**
-3. **K8s Lease 分布式锁**：`coordination.k8s.io/v1` Lease 防止 Router 多副本并发部署同一模型
-4. **业务级 Prometheus metrics**：`chat_completions_duration_seconds` / `http_requests_total` / `models_loaded`
+1. **lib 三层分层抽象**（对应 JD 后端架构能力）
+   - 上层 ModelOperator 只关心 load_model(alias) / unload_model(alias)
+   - 中层 VLLMInferenceOperator 封装 helm 细节
+   - 低层 K8sJobOperator 通用 K8s Job 调度
+2. **Helm ConfigMap 注入 aliases**（对应 JD 容器化 + 资源调度）
+   - 避免每次新增模型都 rebuild 镜像（GPU 镜像 15-20GB rebuild 5-10min）
+   - ConfigMap 秒级生效，零镜像重建
+3. **K8s Lease 分布式锁**（对应 JD 集群运维 + HA）
+   - coordination.k8s.io/v1 Lease 防止 Router 多副本并发部署同一模型
+   - 锁粒度按 model alias，自动过期 + 续约
+4. **业务级 Prometheus metrics**（对应 JD 平台可观测性）
+   - `chat_completions_duration_seconds`（histogram，含 status code 标签）
+   - `http_requests_total`（counter，按 method/route/status）
+   - `models_loaded`（gauge，反映 in-memory state）
+   - ServiceMonitor 可选进 Grafana
 
-**质量保证**：31 commits / 90 tests pass / coverage 88% / ruff + mypy strict + helm-lint clean
-**踩坑**：Service DNS 不匹配 bug（`--set fullnameOverride={release_name}` 修复） + 国内 kind 节点镜像加速（DaoCloud mirror）
+**GPU vendor 切换 demo**（对应 JD 加分 GPU 集群）：
+- values.yaml `gpu.vendor=amd|nvidia|none`
+- AMD：amd.com/gpu 资源调度，ROCm vLLM 镜像
+- NVIDIA：nvidia.com/gpu 资源调度，CUDA vLLM 镜像
+- none：CPU only 模式（kind cluster 默认）
 
-**未来**：SSE 流式推理 v1.1 / RBAC 收紧只读 / 真实 GPU 集群 e2e
+**质量保证**：
+- 31 commits / 90 tests pass / coverage 88%
+- ruff + mypy strict + helm-lint 全 clean
+- 2 Helm charts（llm-inference + llm-router）
+
+**踩坑与修复**：
+- Service DNS 不匹配 bug：`--set fullnameOverride={release_name}` 修复
+- kind 节点国内镜像加速：containerdConfigPatches + DaoCloud mirror
+- 这些都写入 `docs/amd-interview-demo.md` 供现场参考
+
+**未来**（v1.1）：SSE 流式推理 / RBAC 收紧只读 / 真实 GPU 集群 e2e
 ```
 
 ### 验证
-- amd-rocm 专用 resume.md 长度 1.5-2 页
+- amd-rocm 专用 resume.md 长度 2-3 页（**长度无限制**，重点是关键词命中）
 - 求职意向 / 个人简介 / 技能栏三段都是"AMD ROCm 关键词强相关"
-- k8s-llm-runtime 占用 1/3 篇幅
+- k8s-llm-runtime 占用 ≥ 1/3 篇幅
+- 关键词命中（grep 自检）：AMD ROCm / vLLM / Helm / K8s / Prometheus / 容器化 / 资源调度 / Snakemake / 类 Argo Workflows / 现场 demo 至少各 ≥ 1
+- "现场 demo 能力" 显式写进个人优势
 
 ---
 
@@ -240,13 +332,14 @@
 
 ## ⑤ k8s-llm-runtime/1-pager.md（技术架构型）
 
-### 结构（1.5 页内）
+### 结构（1.5 页内，按 JD 关键词强化）
 
 ```markdown
 # k8s-llm-runtime
-## OpenAI 兼容的 K8s vLLM 模型服务网关
+## OpenAI 兼容的 K8s vLLM 模型服务网关（v0.1.0 tagged）
 
 > 1 行定位：用 Helm + Python lib 把 vLLM 模型部署变成一行命令，自动暴露 OpenAI 兼容 API。
+> 对应 JD：大模型推理 Workshop / 平台型软件后端研发 / 容器化部署 / 资源调度 / 任务编排
 
 ## 问题
 
@@ -263,21 +356,32 @@ vLLM 模型部署需要 GPU + 容器 + 路由，团队多人共享时模型管�
 - `K8sJobOperator`（最底）：通用 K8s Job 调度
 - `VLLMInferenceOperator`（中）：封装 helm install/upgrade/uninstall + GPU vendor 切换
 - `ModelOperator`（高）：用户只调 `load_model(alias)` / `unload_model(alias)`，底层细节全封装
+- 对应 JD：平台型软件后端研发 / 任务编排
 
 ### 2. Helm ConfigMap 注入 aliases
 - vLLM 镜像内已有 `aliases.json` 模板，**只需 ConfigMap 注入**而非 rebuild 镜像
 - initContainer 把 chart 源从 ConfigMap cp 到 `/app/charts/llm-inference/`
-- 新增模型仅改 ConfigMap，零镜像重建
+- 新增模型仅改 ConfigMap，零镜像重建（GPU 镜像 15-20GB，rebuild 5-10min）
+- 对应 JD：容器化部署 / 资源调度
 
 ### 3. K8s Lease 分布式锁
 - 用 `coordination.k8s.io/v1` Lease 防 Router 多副本并发部署同一模型
 - 锁粒度按 model alias，自动过期 + 续约
+- 对应 JD：集群运维 / HA 设计
 
 ### 4. 业务级 Prometheus metrics
 - `chat_completions_duration_seconds`（histogram，含 status code 标签）
 - `http_requests_total`（counter，按 method/route/status）
 - `models_loaded`（gauge，反映 in-memory state）
-- 直接进 Grafana，业务可观测性强
+- ServiceMonitor 可选启用
+- 对应 JD：数据集管理 / 平台可观测性
+
+## GPU vendor 切换（对应 JD 加分 GPU 集群）
+
+- values.yaml `gpu.vendor=amd|nvidia|none`
+- AMD：amd.com/gpu 资源调度，ROCm vLLM 镜像
+- NVIDIA：nvidia.com/gpu 资源调度，CUDA vLLM 镜像
+- none：CPU only 模式（kind cluster 默认，本地开发用）
 
 ## 量化指标
 
@@ -288,6 +392,7 @@ vLLM 模型部署需要 GPU + 容器 + 路由，团队多人共享时模型管�
 | Coverage | 88% |
 | Lint | ruff + mypy strict + helm-lint 全 clean |
 | Helm charts | 2（llm-inference + llm-router） |
+| Demo | kind cluster + LLM 推理端到端可跑 |
 
 ## 未来工作
 
@@ -300,59 +405,73 @@ vLLM 模型部署需要 GPU + 容器 + 路由，团队多人共享时模型管�
 
 ## ⑥ k8s-llm-runtime/5min-pitch.md
 
-### 结构（5 段，每段标注时长）
+### 结构（5 段，每段标注时长，对应 JD 关键词 + 现场 demo 引导）
 
 ```markdown
 # 5 分钟面试讲解稿 — k8s-llm-runtime
 
+> 配套：`docs/amd-interview-demo.md`（现场 demo 命令清单）
+> 对应岗位：AMD ROCm Python 后端开发工程师
+
 ## 0:00 - 0:30  开场（30 秒）
 
-> "我是胡盛，3 年生物信息工程化经验。最近自学 K8s 后端栈，做了 k8s-llm-runtime —— 一个在 K8s 上把 vLLM 模型部署变成一行命令的项目，暴露 OpenAI 兼容 API。今天用 5 分钟讲一下。"
+> "我是胡盛，3 年生物信息工程化经验，最近 6 周自学 K8s 后端栈，
+> 完成 k8s-llm-runtime —— 一个在 K8s 上把 vLLM 模型部署变成一行命令的项目，
+> 暴露 OpenAI 兼容 API。v0.1.0 已 tag，可现场跑 demo。
+> 今天用 5 分钟讲一下设计 + 4 个技术亮点 + 1 个踩坑。"
 
-## 0:30 - 2:00  问题陈述（90 秒）
+## 0:30 - 2:00  问题陈述（90 秒，对应 JD 职责）
 
 - vLLM 模型部署需要 GPU + 容器 + Service 路由 + 配置管理
 - 团队多人共享 GPU 资源时：谁部署了哪个模型、版本多少、怎么下线？
 - 现有方案（裸 YAML / KServe）门槛高或者引入 CRD 复杂度
-- 我的目标：**用户发 `POST /v1/chat/completions`，网关在后台按需 `helm install` 部署对应模型，部署完成后自动转发**
+- 目标：用户发 `POST /v1/chat/completions`，网关在后台按需 `helm install` 部署对应模型，部署完成后自动转发
+- 对应 JD 职责："大模型训练/推理 Workshop / 教程 / 功能演示" + "平台型软件后端研发"
 
-## 2:00 - 4:00  架构 + 4 大亮点（120 秒）
+## 2:00 - 4:00  架构 + 4 大亮点（120 秒，对应 JD 硬性 + 加分）
 
 **架构**（30 秒）：双 chart（llm-inference + llm-router）+ 三层 Python lib
+- llm-inference：vLLM 负载 chart，GPU vendor 切换仅靠 `values.yaml`（amd/nvidia/none）
+- llm-router：FastAPI 网关 chart，ConfigMap 注入 initContainer 加载兄弟 chart
 
 **4 大亮点**（90 秒，每点 ~22 秒）：
-1. **分层抽象** — ModelOperator 只关心 load/unload，Helm 细节全封装
-2. **ConfigMap 注入 aliases** — 新模型不改镜像，仅改 ConfigMap
-3. **K8s Lease 锁** — Router 多副本防并发部署同模型
-4. **业务级 metrics** — `chat_completions_duration_seconds` 等可直接进 Grafana
+1. **分层抽象**（对应 JD 后端架构）— ModelOperator 只关心 load/unload，Helm 细节全封装
+2. **ConfigMap 注入 aliases**（对应 JD 容器化）— 新模型不改镜像（15-20GB 镜像 rebuild 5-10min），仅改 ConfigMap
+3. **K8s Lease 锁**（对应 JD 集群运维）— Router 多副本防并发部署同模型
+4. **业务级 metrics**（对应 JD 平台可观测）— `chat_completions_duration_seconds` 等可直接进 Grafana
 
 ## 4:00 - 4:30  量化 + 1 个踩坑（30 秒）
 
-- 量化：31 commits / 90 tests / coverage 88% / lint 全 clean
-- 踩坑：Service DNS 不匹配 bug，原因是 helm install 生成的 Service name 带 release 前缀，get_endpoint 拼的是无前缀名。修：`--set fullnameOverride={release_name}`。这个 bug 教会我 K8s 命名空间内 DNS 是 FQDN
+- 量化：31 commits / 90 tests / coverage 88% / ruff + mypy strict + helm-lint clean / 2 charts
+- 踩坑：Service DNS 不匹配 bug —— helm install 生成的 Service name 带 release 前缀，get_endpoint 拼的是无前缀名。
+  修复：`--set fullnameOverride={release_name}`。这个 bug 教会我 K8s 命名空间内 DNS 是 FQDN，
+  写代码前要先在集群里 `kubectl get svc` 看实际名字。
 
-## 4:30 - 5:00  收尾（30 秒）
+## 4:30 - 5:00  收尾 + 现场 demo 引导（30 秒）
 
 - 仓库独立维护，v0.1.0 tagged
 - 未来 v1.1 计划：SSE 流式、RBAC 收紧、真实 GPU 集群 e2e
-- 演示 / 提问环节
+- **现场 demo 引导**（关键）：可在我自己电脑上用 kind 集群跑完整流程
+  - `make cluster-up CLUSTER=kind` → build router image → helm install → port-forward → curl /v1/chat/completions
+  - 命令清单见 `docs/amd-interview-demo.md`（对应 JD "prefer 现场 F2F / 自带电脑"）
+- 提问环节
 ```
 
 ---
 
 ## ⑦ k8s-llm-runtime/whiteboard-qa.md（30 题）
 
-### 主题分布
+### 主题分布（按 JD 缺口优先级 + 面试常问调整）
 
-| 主题 | 题数 |
-|------|------|
-| 架构决策 | 10 |
-| 故障处理 / 可观测性 | 5 |
-| 性能优化 | 5 |
-| K8s 细节 | 5 |
-| AMD / ROCm | 5 |
+| 主题 | 题数 | 优先级依据 |
+|------|------|------------|
+| K8s 实战细节 | 10 | 🔴 JD 第一大缺口（4 周必补） |
+| 架构决策 | 8 | 面试必问（设计取舍） |
+| AMD / ROCm 生态 | 5 | 🟡 JD 加分项 |
+| 故障处理 / 可观测性 | 4 | 平台型后端必问 |
+| 性能优化 | 3 | LLM 推理场景关注 |
 
-### 架构决策（10 题样例）
+### 架构决策（8 题样例，按 JD 加分项强化）
 
 1. 为什么不直接用 KServe / vLLM Operator？
    - KServe 引入 CRD 复杂度，AMD ROCm 集群支持有限；本项目追求"用 K8s 原生资源 + Helm 解决"
@@ -365,17 +484,36 @@ vLLM 模型部署需要 GPU + 容器 + 路由，团队多人共享时模型管�
 5. Helm CLI subprocess 而非 python-helm 库？
    - python-helm 久未更新；CLI 是事实标准；错误码稳定
 6. ConfigMap 注入 aliases 替代 rebuild 镜像的依据？
-   - rebuild 一次 5-10 分钟（GPU 镜像大）；ConfigMap 秒级生效
+   - rebuild 一次 5-10 分钟（GPU 镜像 15-20GB）；ConfigMap 秒级生效
 7. K8s Lease 而非 CRD 实现分布式锁的依据？
    - Lease 是 K8s 原生，CRD 引入 etcd 写入压力
-8. GPU vendor 通过 values.yaml 显式选择（amd/nvidia/none）？
-   - chart 不能在 install 时探测集群；显式优于隐式
-9. Chart 拆分（llm-inference + llm-router）vs 单 chart？
-   - 拆分利于 llm-inference 单独被消费；Router 复用 ConfigMap 注入
-10. 错误处理用类型化异常 + tenacity 重试 + HTTP 状态码映射的边界？
-    - 库抛类型化异常；服务捕获后映射 HTTP 4xx/5xx；tenacity 处理 transient 错误（K8s API 503 / network）
+8. 错误处理用类型化异常 + tenacity 重试 + HTTP 状态码映射的边界？
+   - 库抛类型化异常；服务捕获后映射 HTTP 4xx/5xx；tenacity 处理 transient 错误（K8s API 503 / network）
 
-### 故障处理 / 可观测性（5 题样例）
+### K8s 实战细节（10 题样例，对应 JD 第一大缺口）
+
+1. Pod 启动失败的常见原因？
+   - 镜像拉取失败（network/quota）、资源不足（CPU/memory/GPU）、readiness probe 配置错
+2. Deployment 滚动更新怎么控制？
+   - maxSurge / maxUnavailable 字段；本项目 chart 默认 25% / 25%
+3. Service ClusterIP / NodePort / LoadBalancer 怎么选？
+   - 集群内 ClusterIP；外部 NodePort；云厂商 LoadBalancer
+4. ConfigMap 热更新会触发 Pod 重启吗？
+   - 不会，K8s ConfigMap 是被动拉取；本项目 Router 启动时拉取
+5. Pod 调度到哪个 Node 由什么决定？
+   - nodeSelector / affinity / taints tolerations / resource requests
+6. 怎么查看 Pod 日志？
+   - kubectl logs / kubectl logs -f / kubectl logs --previous（上一容器实例）
+7. Helm install 和 Helm upgrade 区别？
+   - install 首次部署；upgrade 增量更新（diff 显示变更）
+8. Helm values 怎么合并多文件？
+   - helm install `-f base.yaml -f override.yaml`，后覆盖前
+9. Helm release 卸载后资源会删除吗？
+   - 默认会，--keep-resources 标志可保留
+10. K8s RBAC 最小权限怎么设计？
+    - ServiceAccount + Role + RoleBinding；本项目 Router SA 只需 Pod/Service/ConfigMap read+write + Lease
+
+### 故障处理 / 可观测性（4 题样例）
 
 1. vLLM Pod 挂掉怎么发现？
    - liveness probe + Prometheus `kube_pod_container_status_running` 指标 + Router 5xx rate 告警
@@ -385,36 +523,17 @@ vLLM 模型部署需要 GPU + 容器 + 路由，团队多人共享时模型管�
    - 不会，Service 负载均衡；Lease 锁仅保护 helm 操作
 4. vLLM 启动慢（30-60s），Router 怎么避免把请求转给未就绪的 Pod？
    - readiness probe + 启动期间请求返回 503 retry-after
-5. Prometheus metrics 抓取失败，Router 还能用吗？
-   - 完全解耦；metrics 仅 observability，缺失不影响功能
 
-### 性能优化（5 题样例）
+### 性能优化（3 题样例）
 
 1. Router 延迟瓶颈在哪？
    - 主要是 K8s API 调用（lease / helm status）；vLLM 推理本身是 GPU 瓶颈
-2. ConfigMap 注入的 aliases 有大小限制吗？
-   - 1MB（etcd 限制）；aliases 通常 KB 级，安全
-3. vLLM 推理请求走 HTTP/1.1 还是 HTTP/2？
-   - httpx 客户端 HTTP/1.1；HTTP/2 优化空间大
-4. Helm 操作能并行吗？
+2. Helm 操作能并行吗？
    - 同模型不能并行（Lease 锁）；不同模型可并行
-5. 启动时如何快速恢复 in-memory 状态（models_loaded）？
+3. 启动时如何快速恢复 in-memory 状态（models_loaded）？
    - lifespan 中 `discover_existing()` 调 K8s API 列已部署 release，rebuild 状态；try/except 包裹
 
-### K8s 细节（5 题样例）
-
-1. Helm values 怎么合并多文件？
-   - helm install `-f base.yaml -f override.yaml`，后覆盖前
-2. Service DNS 在 K8s 内怎么解析？
-   - `{service}.{namespace}.svc.cluster.local`；helm fullnameOverride 改了 service name
-3. Lease 锁的租约（lease duration）和续约周期怎么设？
-   - duration 30s，renew 10s（1/3）；超时自动释放
-4. RBAC 最小权限是什么？
-   - Pod/Service/ConfigMap read+write + Lease + Helm（subprocess 不需 K8s RBAC）
-5. kind 集群和 minikube 部署差异？
-   - kind 节点内是 containerd；minikube 取决于 driver；本项目 CI 默认 kind
-
-### AMD / ROCm（5 题样例）
+### AMD / ROCm（5 题样例，对应 JD 加分项 GPU 集群）
 
 1. vLLM 在 ROCm 和 CUDA 上差异？
    - API 几乎一致；底层 ROCm vs CUDA；HIP 兼容层；性能差距通常 5-15%
@@ -515,19 +634,31 @@ graph TB
 
 ---
 
-## 时间估计
+## 执行节奏（按用户指示：**先简历后其他**）
 
-| 任务 | 估计 |
-|---|---|
-| ① 通用 Resume.md 修改 | 30 min |
-| ② amd-rocm 专用 resume.md | 1.5 h |
-| ③ ④ resume.css / .pdf | 15 min |
-| ⑤ 1-pager.md | 1 h |
-| ⑥ 5min-pitch.md | 30 min |
-| ⑦ whiteboard-qa.md（30 题） | 1.5 h |
-| ⑧ architecture.mmd | 15 min |
-| 验证 + 调整 + commit | 30 min |
-| **总计** | **~5 h** |
+### 阶段 1：简历优先（先做，立即可用）
+| 任务 | 估计 | 产出 |
+|---|---|---|
+| ① 通用 Resume.md 修改 | 30 min | `notes/Resume.md` |
+| ② amd-rocm 专用 resume.md | 1.5 h | `tracks/amd-rocm-python-backend/notes/resume.md` |
+| ③ ④ resume.css / .pdf | 15 min | 复用 BCI css + weasyprint 导出 |
+| 验证 + 调整 + commit | 30 min | git commit |
+| **阶段 1 小计** | **~2.75 h** | **可立即投岗** |
+
+### 阶段 2：面试弹药（推迟，面试前 1-2 天做）
+| 任务 | 估计 | 产出 |
+|---|---|---|
+| ⑤ 1-pager.md | 1 h | `tracks/amd-rocm-python-backend/notes/k8s-llm-runtime/1-pager.md` |
+| ⑥ 5min-pitch.md | 30 min | `…/5min-pitch.md` |
+| ⑦ whiteboard-qa.md（30 题） | 1.5 h | `…/whiteboard-qa.md` |
+| ⑧ architecture.mmd | 15 min | `…/architecture.mmd` |
+| 验证 + 调整 + commit | 30 min | git commit |
+| **阶段 2 小计** | **~3.5 h** | **面试前完成** |
+
+### 阶段 3（可选，v0.2.0）
+- 公开博客（基于 1-pager 扩写）
+- 简历英文版（海外投岗）
+- STAR 故事库（行为面准备）
 
 ---
 
@@ -550,11 +681,13 @@ graph TB
 
 ## Open Questions（用户已确认）
 
-- ✅ 范围：L1 简历 + L2 项目展示
+- ✅ 范围：阶段 1 简历 + 阶段 2 面试弹药（**先简历后其他**）
 - ✅ 简历策略：两套（通用 + amd-rocm 专用）
 - ✅ 通用 Resume.md：加 2 卡片（k8s-llm-runtime 主力 + BCI 轻提）
-- ✅ 1-pager 风格：技术架构型
-- ✅ 执行节奏：Approach 2 一次性
+- ✅ amd-rocm 简历：**按 JD 定制**（job-requirements.md 5 硬性 + 9 加分）
+- ✅ 1-pager 风格：技术架构型 + JD 关键词强化
+- ✅ Q&A 主题分布：按 JD 缺口调整（K8s 10 + 架构 8 + AMD 5 + 故障 4 + 性能 3）
 - ✅ 博客：v0.2.0 可选
 - ✅ 架构图：Mermaid
 - ✅ PDF 工具：weasyprint
+- ✅ 简历长度：长点无所谓（重点是关键词命中）
